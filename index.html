@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="忍打道 —NINDA DO— は、型をきわめてから速さを解禁する小学生向けタイピング修行アプリです。">
+  <title>忍打道 —NINDA DO—</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <div id="imeOverlay" class="overlay" hidden>
+      <div class="dialog">
+        <h2>にほんごにゅうりょくを オフにしてね</h2>
+        <p>Chromebookは「かな/英数」キーで切りかえられるよ。</p>
+      </div>
+    </div>
+
+    <section id="S0" class="screen title-screen">
+      <div id="logoMount" class="logo-mount"></div>
+      <p class="catch">型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。<br>——それが、忍打道。</p>
+      <form id="nameForm" class="entry-panel">
+        <label for="ninjaName">にんじゃネーム</label>
+        <input id="ninjaName" maxlength="10" autocomplete="off" placeholder="しのびまる">
+        <p class="hint">ほんとうの名まえじゃなくていいよ。</p>
+        <div class="button-row">
+          <button type="submit" data-start-stage="nyumon1">はじめてのひと</button>
+          <button type="button" id="startKyu10" data-start-stage="kyu10">ローマ字がわかるひと</button>
+          <button type="button" id="continueButton" hidden>つづきから</button>
+        </div>
+      </form>
+      <p class="keyboard-note">このアプリはキーボードをつないであそんでね</p>
+    </section>
+
+    <section id="S1" class="screen" hidden>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">キーの里</p>
+          <h1>忍打道 —NINDA DO—</h1>
+        </div>
+        <nav class="top-actions" aria-label="画面">
+          <button data-screen="S4">巻物庫</button>
+          <button data-screen="S5">免状</button>
+          <button data-screen="S6">設定</button>
+        </nav>
+      </header>
+      <main class="home-grid">
+        <section class="map-panel" aria-label="修行マップ">
+          <div id="mapMount" class="mountain-map"></div>
+        </section>
+        <aside class="next-panel">
+          <h2 id="currentRank">修行の道</h2>
+          <p id="nextGoal">次の目標をえらんでね。</p>
+          <div class="button-stack">
+            <button id="trainingButton">しゅぎょうする</button>
+            <button id="examButton">ためしにいどむ</button>
+            <button id="jissenButton" hidden>実戦の修行</button>
+          </div>
+        </aside>
+      </main>
+    </section>
+
+    <section id="S2" class="screen play-screen" hidden>
+      <header class="play-header">
+        <button class="backHome">さとへ</button>
+        <h1 id="trainingTitle">修行</h1>
+        <div id="trainingStats" class="stat-line"></div>
+      </header>
+      <main class="dojo">
+        <div id="promptKana" class="prompt-kana"></div>
+        <div id="promptFurigana" class="prompt-furigana"></div>
+        <div id="romajiGuide" class="romaji-guide"></div>
+        <div id="guideMount" class="guide-area"></div>
+        <div id="progressMount" class="progress-line"></div>
+        <div id="resultMount" class="result-panel" hidden></div>
+      </main>
+    </section>
+
+    <section id="S3" class="screen play-screen" hidden>
+      <header class="play-header">
+        <button class="backHome">さとへ</button>
+        <h1 id="examTitle">試し</h1>
+        <div id="examStats" class="stat-line"></div>
+      </header>
+      <main class="dojo">
+        <div id="examPhase" class="phase-label"></div>
+        <div id="examPromptKana" class="prompt-kana"></div>
+        <div id="examRomajiGuide" class="romaji-guide"></div>
+        <div id="examGuideMount" class="guide-area"></div>
+        <div id="examProgressMount" class="progress-line"></div>
+        <div id="examResultMount" class="result-panel" hidden></div>
+      </main>
+    </section>
+
+    <section id="S4" class="screen" hidden>
+      <header class="topbar"><button data-screen="S1">さとへ</button><h1>巻物庫</h1></header>
+      <div class="tabs" role="tablist">
+        <button class="tab-button active" data-collection-tab="scrolls">巻物</button>
+        <button class="tab-button" data-collection-tab="nicknames">二つ名</button>
+      </div>
+      <div id="collectionMount" class="collection-grid"></div>
+    </section>
+
+    <section id="S5" class="screen" hidden>
+      <header class="topbar"><button data-screen="S1">さとへ</button><h1>免状</h1></header>
+      <div id="licenseMount" class="license-card"></div>
+    </section>
+
+    <section id="S6" class="screen" hidden>
+      <header class="topbar"><button data-screen="S1">さとへ</button><h1>設定</h1></header>
+      <div id="settingsMount" class="settings-panel"></div>
+    </section>
+  </div>
+
+  <script src="data/finger-data.js"></script>
+  <script src="data/romaji-data.js"></script>
+  <script src="data/jutsu-data.js"></script>
+  <script src="data/nickname-data.js"></script>
+  <script src="data/curriculum-data.js"></script>
+  <script src="data/rank-data.js"></script>
+  <script src="data/words/nyumon-words.js"></script>
+  <script src="data/words/kyu10-words.js"></script>
+  <script src="data/words/kyu9-words.js"></script>
+  <script src="data/words/kyu8-words.js"></script>
+  <script src="data/words/kyu7-words.js"></script>
+  <script src="data/words/kyu6-words.js"></script>
+  <script src="data/words/kyu5-words.js"></script>
+  <script src="data/words/kyu4-words.js"></script>
+  <script src="data/words/kyu3-words.js"></script>
+  <script src="data/words/kyu2-words.js"></script>
+  <script src="data/words/kyu1-words.js"></script>
+  <script src="data/words/dan-words.js"></script>
+  <script src="data/words/dan-sentences.js"></script>
+  <script src="js/svg-icons.js"></script>
+  <script src="js/save-manager.js"></script>
+  <script src="js/audio-manager.js"></script>
+  <script src="js/input-engine.js"></script>
+  <script src="js/metrics-engine.js"></script>
+  <script src="js/guide-renderer.js"></script>
+  <script src="js/training-manager.js"></script>
+  <script src="js/exam-manager.js"></script>
+  <script src="js/achievement-manager.js"></script>
+  <script src="js/collection-renderer.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
