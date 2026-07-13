@@ -3,6 +3,7 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   const STORAGE_KEY = "nindaDoSaveV1";
   const DAN_ORDER = ["none", "genin", "chunin", "jonin", "tokujonin", "kage"];
+  const CODE_ALPHABET = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみ";
   let syncAdapter = null;
 
   function now() {
@@ -191,6 +192,108 @@ const SaveManager = globalThis.SaveManager = (function () {
     localStorage.removeItem(STORAGE_KEY);
   }
 
+  function setSetting(key, value) {
+    return update((saveData) => {
+      saveData.settings[key] = !!value;
+    });
+  }
+
+  function setEquippedNickname(id) {
+    return update((saveData) => {
+      if (saveData.nicknames.includes(id)) saveData.equippedNickname = id;
+    });
+  }
+
+  function grantNickname(id) {
+    return update((saveData) => {
+      addUnique(saveData.nicknames, id);
+      if (!saveData.equippedNickname) saveData.equippedNickname = id;
+      saveData.eventLog.push({ ts: now(), type: "nickname_get", id });
+      saveData.eventLog = saveData.eventLog.slice(-200);
+    });
+  }
+
+  function exportCode(saveData) {
+    const data = normalize(saveData || ensure());
+    const stageIndex = Math.max(0, CURRICULUM_DATA.stages.findIndex((stage) => stage.id === data.currentStage));
+    const danIndex = Math.max(0, DAN_ORDER.indexOf(data.dan || "none"));
+    const scrollMask = maskFromIds(JUTSU_DATA.map((item) => item.id), data.scrolls);
+    const nicknameMask = maskFromIds(NICKNAME_DATA.map((item) => item.id), data.nicknames);
+    const correctHundreds = Math.min(0xffffff, Math.floor((data.totals.correct || 0) / 100));
+    const bytes = [
+      1, stageIndex & 0xff, danIndex & 0xff,
+      scrollMask & 0xff, (scrollMask >> 8) & 0xff,
+      nicknameMask & 0xff, (nicknameMask >> 8) & 0xff,
+      correctHundreds & 0xff, (correctHundreds >> 8) & 0xff, (correctHundreds >> 16) & 0xff,
+      Math.min(255, data.streak.days || 0)
+    ];
+    bytes.push(crc8(bytes));
+    return groupCode(encode5(bytes));
+  }
+
+  function restoreCode(code, name) {
+    const compact = String(code || "").replace(/[\s-]/g, "");
+    const bytes = decode5(compact);
+    if (bytes.length < 12) throw new Error("あいことばが ちがうみたい");
+    const payload = bytes.slice(0, 11);
+    if (crc8(payload) !== bytes[11]) throw new Error("あいことばが ちがうみたい");
+    const scrollMask = payload[3] | (payload[4] << 8);
+    const nicknameMask = payload[5] | (payload[6] << 8);
+    const correctHundreds = payload[7] | (payload[8] << 8) | (payload[9] << 16);
+    const restored = defaultSave(name || (load() && load().name) || "しのびまる", CURRICULUM_DATA.stages[payload[1]] ? CURRICULUM_DATA.stages[payload[1]].id : "nyumon1");
+    restored.v = payload[0] || 1;
+    restored.dan = DAN_ORDER[payload[2]] || "none";
+    restored.scrolls = idsFromMask(JUTSU_DATA.map((item) => item.id), scrollMask);
+    restored.nicknames = idsFromMask(NICKNAME_DATA.map((item) => item.id), nicknameMask);
+    restored.equippedNickname = restored.nicknames[0] || "";
+    restored.totals.correct = correctHundreds * 100;
+    restored.totals.keys = restored.totals.correct;
+    restored.streak = { last: todayJst(), days: payload[10] };
+    return save(restored);
+  }
+
+  function maskFromIds(order, ids) {
+    return order.reduce((mask, id, index) => ids.includes(id) ? mask | (1 << index) : mask, 0);
+  }
+
+  function idsFromMask(order, mask) {
+    return order.filter((_, index) => (mask & (1 << index)) !== 0);
+  }
+
+  function crc8(bytes) {
+    let crc = 0;
+    for (const byte of bytes) {
+      crc ^= byte;
+      for (let i = 0; i < 8; i += 1) crc = (crc & 0x80) ? ((crc << 1) ^ 0x07) & 0xff : (crc << 1) & 0xff;
+    }
+    return crc;
+  }
+
+  function encode5(bytes) {
+    let bits = "";
+    bytes.forEach((byte) => { bits += byte.toString(2).padStart(8, "0"); });
+    while (bits.length % 5) bits += "0";
+    let output = "";
+    for (let i = 0; i < bits.length; i += 5) output += CODE_ALPHABET[parseInt(bits.slice(i, i + 5), 2)];
+    return output;
+  }
+
+  function decode5(text) {
+    let bits = "";
+    for (const char of text) {
+      const index = CODE_ALPHABET.indexOf(char);
+      if (index < 0) throw new Error("あいことばが ちがうみたい");
+      bits += index.toString(2).padStart(5, "0");
+    }
+    const bytes = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+    return bytes.slice(0, 12);
+  }
+
+  function groupCode(code) {
+    return code.match(/.{1,5}/g).join("-");
+  }
+
   function setSyncAdapter(adapter) {
     syncAdapter = adapter || null;
   }
@@ -213,6 +316,11 @@ const SaveManager = globalThis.SaveManager = (function () {
     betterRhythm,
     nextStageId,
     sanitizeName,
+    setSetting,
+    setEquippedNickname,
+    grantNickname,
+    exportCode,
+    restoreCode,
     reset,
     setSyncAdapter
   };

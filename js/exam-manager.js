@@ -61,6 +61,7 @@ const ExamManager = globalThis.ExamManager = (function () {
           SaveManager.grantStageClear(stage.id, { acc: summary.accuracy });
           if (summary.miss === 0 && globalThis.AchievementManager) AchievementManager.grant("seijaku");
           if (stage.guideLevelExam === 0 && globalThis.AchievementManager) AchievementManager.grant("kaigan");
+          if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
           if (globalThis.AudioManager) {
             if (stage.id === "kyu1") AudioManager.rankUp();
             else AudioManager.pass();

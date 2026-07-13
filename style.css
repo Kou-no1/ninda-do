@@ -157,6 +157,30 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(30, 74, 115,
 .tabs { display: flex; gap: 8px; margin: 12px 0; }
 .tab-button.active { background: var(--ai); color: #fff; border-color: var(--ai); }
 .license-card, .settings-panel { padding: 20px; display: grid; gap: 12px; }
+.license-head { display: flex; gap: 14px; align-items: center; }
+.license-head svg { width: 76px; height: 76px; }
+.license-head h2 { margin: 0; font-size: 34px; }
+.license-list { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; }
+.license-list dt { font-weight: 800; color: var(--ai); }
+.license-list dd { margin: 0; font-variant-numeric: tabular-nums; }
+.passcode-box, .restore-box, .danger-zone { display: grid; gap: 10px; border-top: 2px solid var(--line); padding-top: 14px; }
+.passcode-box output, code { overflow-wrap: anywhere; font-weight: 800; color: var(--ai); }
+.setting-row { display: flex; gap: 10px; align-items: center; font-weight: 800; }
+textarea { width: 100%; border: 2px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+.danger-zone button { border-color: var(--shu); color: var(--shu); }
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 30;
+  max-width: min(360px, calc(100vw - 36px));
+  background: var(--sumi);
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+  font-weight: 800;
+}
 .overlay { position: fixed; inset: 0; z-index: 20; background: rgba(42,38,34,0.45); display: grid; place-items: center; padding: 20px; }
 .dialog { width: min(520px, 100%); background: var(--paper); border: 3px solid var(--sumi); border-radius: 8px; padding: 22px; text-align: center; }
 
