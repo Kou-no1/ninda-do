@@ -26,7 +26,7 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     return `<div class="keyboard" aria-label="画面キーボード">${ROWS.map((row) => {
       return `<div class="key-row">${row.map((key) => {
         const info = FINGER_DATA.keys[key];
-        const color = info ? FINGER_DATA.fingerColors[info.finger] : "var(--line)";
+        const color = keyColor(key) || "var(--line)";
         const next = expected.has(key) ? " next" : "";
         const label = key === ";" ? ";" : key;
         return `<div class="key${next}" style="border-color:${next ? color : "var(--line)"}">${label}</div>`;
@@ -54,5 +54,55 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     </svg></div>`;
   }
 
-  return { render };
+  function renderPoster(target) {
+    if (!target) return;
+    target.innerHTML = `${posterKeyboard()}${posterHands()}${posterLegend()}<p class="poster-note">うったら、かまえ（ホームポジション）に もどる</p>`;
+  }
+
+  function posterKeyboard() {
+    return `<section class="poster-keyboard" aria-label="ゆびの色キーボード">
+      ${ROWS.map((row) => `<div class="poster-key-row">${row.map((key) => {
+        const color = keyColor(key);
+        return `<div class="poster-key" style="--finger-color:${color}" data-key="${key}">
+          <span>${key === ";" ? ";" : key.toUpperCase()}</span>
+          ${key === "f" || key === "j" ? `<span class="home-bump" aria-label="ホームポジションの突起"></span>` : ""}
+        </div>`;
+      }).join("")}</div>`).join("")}
+    </section>`;
+  }
+
+  function posterHands() {
+    const fingerShapes = [
+      ["L5", 86, 62], ["L4", 124, 42], ["L3", 162, 32], ["L2", 202, 50], ["T", 248, 150],
+      ["T", 332, 150], ["R2", 378, 50], ["R3", 418, 32], ["R4", 456, 42], ["R5", 494, 62]
+    ];
+    return `<section class="poster-hands" aria-label="ゆびの色">
+      <svg viewBox="0 0 580 220" role="img" aria-label="両手の指色">
+        <path d="M64 168c10-48 30-84 62-101 25-13 83-12 115 10 21 15 34 39 40 73" fill="none" stroke="#2A2622" stroke-width="6" stroke-linecap="round"/>
+        <path d="M516 168c-10-48-30-84-62-101-25-13-83-12-115 10-21 15-34 39-40 73" fill="none" stroke="#2A2622" stroke-width="6" stroke-linecap="round"/>
+        ${fingerShapes.map(([id, x, y]) => `<g>
+          <circle cx="${x}" cy="${y}" r="16" fill="${FINGER_DATA.fingerColors[id]}" stroke="#2A2622" stroke-width="4"/>
+          <title>${FINGER_DATA.fingerLabels[id]}</title>
+        </g>`).join("")}
+        <text x="158" y="205" text-anchor="middle" font-size="20" font-weight="800" fill="#2A2622">ひだり手</text>
+        <text x="422" y="205" text-anchor="middle" font-size="20" font-weight="800" fill="#2A2622">みぎ手</text>
+      </svg>
+    </section>`;
+  }
+
+  function posterLegend() {
+    return `<section class="poster-legend" aria-label="色の凡例">
+      ${Object.keys(FINGER_DATA.fingerLabels).map((id) => `<div class="legend-item">
+        <span class="legend-swatch" style="--finger-color:${FINGER_DATA.fingerColors[id]}"></span>
+        <span>${FINGER_DATA.fingerLabels[id]}</span>
+      </div>`).join("")}
+    </section>`;
+  }
+
+  function keyColor(key) {
+    const info = FINGER_DATA.keys[key];
+    return info ? FINGER_DATA.fingerColors[info.finger] : "";
+  }
+
+  return { render, renderPoster };
 })();

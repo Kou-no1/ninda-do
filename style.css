@@ -434,6 +434,7 @@ button.tanzaku:disabled {
 .passcode-box, .restore-box, .danger-zone { display: grid; gap: 10px; border-top: 2px solid rgba(42, 38, 34, 0.16); padding-top: 14px; }
 .passcode-box output, code { overflow-wrap: anywhere; font-weight: 800; color: var(--sumi); }
 .setting-row { display: flex; gap: 10px; align-items: center; font-weight: 800; }
+.teacher-menu a { color: var(--ai); font-weight: 800; }
 textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius: 8px; padding: 10px; font: inherit; background: #fff; color: var(--sumi); }
 .danger-zone button { border-color: var(--shu); color: var(--sumi); background: var(--paper); }
 #printLicense { display: none; }

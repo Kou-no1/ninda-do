@@ -97,3 +97,13 @@
 - §2.2 受入確認: 通常Chrome CDPの `Page.printToPDF` でA4縦1ページ（184738 bytes / 1 page）、印刷ボタン押下で `window.print()` が呼ばれ、保存JSONと画面状態が変化しないことを確認。
 - 印刷DOMに免状見出し、名前、段位、二つ名、修得術数、代表紋章3つ、最高気配、累計正打、最大連撃、発行日、発行元が入ることを確認。
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-02 §3
+
+- `poster.html` をルート直下に追加した。読み込みscriptは `finger-data.js`、`svg-icons.js`、`guide-renderer.js`、インライン初期化のみ。
+- ポスター描画は `GuideRenderer.renderPoster(target)` として追加し、アプリ本体の修行画面用 `GuideRenderer.render()` には影響しない形にした。
+- 指色はすべて `FINGER_DATA.fingerColors` からインラインCSS変数へ渡す。`poster.html` には指色コードを直接書かない。
+- 凡例は `FINGER_DATA.fingerLabels` 全件を使うため、左右8指に加えて親指を含む9項目を表示する。
+- §3.2 受入確認: 通常Chrome CDPでキー30個、手の指色玉10個、凡例9項目、キー色ミスマッチ0、凡例色が全て `FINGER_DATA` 由来であることを確認。
+- `poster.html` の `Page.printToPDF` はA4横1ページ（114874 bytes / 1 page）。設定画面リンクは `href="poster.html"`、`target="_blank"`、index側scriptにposter用scriptが混ざっていないことを確認。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
