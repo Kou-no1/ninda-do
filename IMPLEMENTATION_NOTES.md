@@ -55,3 +55,11 @@
 ## 既知の課題
 
 - GitHub Pages の公開設定（Settings → Pages → main / root）はGitHub側設定のため、このリポジトリ内容からは直接変更していない。
+
+## PATCH-01 §1
+
+- `.overlay { display: grid; }` が `[hidden]` のUAスタイルを上書きしていたため、全体リセットとして `[hidden] { display: none !important; }` を追加した。
+- IME警告は修行・試験中、かつイベント対象が編集要素ではない場合だけ表示する。S0のにんじゃネーム入力ではIME利用を許可する。
+- IME解除直後の素の1打でオーバーレイを閉じるときは `preventDefault()` と `stopImmediatePropagation()` を行い、その1打が打鍵判定へ流れないようにした。
+- Chromeが暗黙に `favicon.ico` を取得して404を出すため、外部ファイルを増やさない data URI favicon を追加した。
+- §1.3 受入確認: 起動直後非表示、S0入力中composition無視、修行中compositionで表示・一時停止、IME解除後の1打で非表示かつ判定に流れない、わかったボタン/Escで非表示、すべて通常Chrome CDPで確認。

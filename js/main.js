@@ -79,14 +79,50 @@ const NindaApp = globalThis.NindaApp = (function () {
 
   function wireImeGuard() {
     const overlay = byId("imeOverlay");
-    document.addEventListener("compositionstart", () => {
+    const closeButton = byId("imeOverlayClose");
+    let imeOverlayOpen = false;
+    function isEditableTarget(target) {
+      return !!(target && target.closest && target.closest("input, textarea, [contenteditable]"));
+    }
+    function isPlayActive() {
+      return (currentScreen === "S2" || currentScreen === "S3") && TrainingManager.isActive();
+    }
+    function showImeOverlay(event) {
+      if (!isPlayActive() || isEditableTarget(event && event.target)) return;
       overlay.hidden = false;
+      imeOverlayOpen = true;
       TrainingManager.setPaused(true);
-    });
-    document.addEventListener("compositionend", () => {
+      if (closeButton) closeButton.focus();
+    }
+    function hideImeOverlay() {
       overlay.hidden = true;
+      imeOverlayOpen = false;
       TrainingManager.setPaused(false);
+    }
+    document.addEventListener("compositionstart", showImeOverlay);
+    document.addEventListener("compositionend", hideImeOverlay);
+    document.addEventListener("keydown", (event) => {
+      if (isEditableTarget(event.target)) return;
+      if ((event.isComposing || event.keyCode === 229) && isPlayActive()) {
+        showImeOverlay(event);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (!imeOverlayOpen) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        hideImeOverlay();
+        return;
+      }
+      if (event.isComposing === false && event.key && event.key.length === 1) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        hideImeOverlay();
+      }
     });
+    if (closeButton) closeButton.addEventListener("click", hideImeOverlay);
   }
 
   function wireEscape() {

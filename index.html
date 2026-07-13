@@ -5,14 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="忍打道 —NINDA DO— は、型をきわめてから速さを解禁する小学生向けタイピング修行アプリです。">
   <title>忍打道 —NINDA DO—</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23111C2E'/%3E%3Ccircle cx='44' cy='18' r='10' fill='%23ECE7D8'/%3E%3Cpath d='M16 44h32M22 32h20' stroke='%23E8A33D' stroke-width='7' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app" class="app-shell">
     <div id="imeOverlay" class="overlay" hidden>
-      <div class="dialog">
-        <h2>にほんごにゅうりょくを オフにしてね</h2>
+      <div class="dialog" role="alertdialog" aria-labelledby="imeOverlayTitle">
+        <h2 id="imeOverlayTitle">にほんごにゅうりょくを オフにしてね</h2>
         <p>Chromebookは「かな/英数」キーで切りかえられるよ。</p>
+        <div class="button-row"><button type="button" id="imeOverlayClose">わかった</button></div>
       </div>
     </div>
 
