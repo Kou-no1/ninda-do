@@ -128,3 +128,19 @@
 - 明モードコントラスト実測: 本文 `--tsuki` on `--yoru` = 12.86:1、S2お題札 `--sumi` on `--paper` = 14.29:1。
 - §5.2 受入確認: 明モード保存値 `light`、`body[data-theme="light"]`、現在地リングが2px `--chochin`、下忍前の免状にKPM行なし、印刷免状は明モードでも白地・墨文字固定を確認。コンソールイベント0。
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-02 §6
+
+- `favicon.svg` はルート直下に追加し、丸に手裏剣の静的SVGにした。`index.html` と `poster.html` は相対パス `favicon.svg` を参照する。
+- `og.png` は通常Chrome CDPでS0を 1200x630 にして撮影した。保存前にS0を夜テーマへ固定し、スクリーンショット用にスクロールバーを隠した。
+- `index.html` head に OGP 5タグ + `twitter:card` を追加した。`og:image` は公開URL `https://kou-no1.github.io/ninda-do/og.png` を指定する。
+- `SPEC_FOR_CODEX.md` の控えに、静的メタ資産 `favicon.svg` / `og.png` の例外と `poster.html` 追加を追記した。
+- §6.2 受入確認: `og.png` は 1200x630 / 71405 bytes、S0の夜テーマ・ロゴ・キャッチコピーが収まる構図であることを目視確認。headの6タグとfaviconリンク2箇所を静的確認。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-02 通し確認
+
+- 通常Chrome CDPで `file://` の `index.html` を起動し、title、`NindaApp` 起動、IMEオーバーレイ初期非表示、favicon相対参照、OGP URLを確認。コンソールイベント0、外部HTTP(S)リクエスト0。
+- 静的検索で `fetch(` / `XMLHttpRequest` / `type="module"` / ルート絶対 `src`・`href` / 許可外HTTPS参照がないことを確認。
+- 1366x768: S2修行で横スクロールなし、お題文字72px、級段階KPM表示なし。1024x768明モード: S1/S2横スクロールなし、お題文字61.44px、級段階KPM表示なし。
+- 最終 `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。

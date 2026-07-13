@@ -9,8 +9,10 @@
 - ミスした打鍵で文字を進めない。
 - guideLevel は `data/curriculum-data.js` が決め、UIコードに級ごとの表示量をハードコードしない。
 - ビルドなし、ES Modules なし、fetch/XHR なし、外部CDNなし、依存0、`file://` 動作。
+- 画像・音声ファイルは持たない。ただし実行時にJSから読み込まない静的メタ資産 `favicon.svg` / `og.png` は例外として許可する。
 - 保存は localStorage のみ。将来連携用に `SaveManager.setSyncAdapter(adapter)` を持つ。
 - ロジックは `js/`、コンテンツと合格基準は `data/` に分離する。
+- PATCH-02 でルート直下の `favicon.svg` / `og.png` / `poster.html` を追加する。
 
 完成条件:
 
