@@ -104,6 +104,21 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(30, 74, 115,
 }
 
 .mountain-map { min-height: 560px; padding: 22px; }
+.map-path { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: stretch; }
+.map-node {
+  min-height: 108px;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  background: rgba(255, 249, 234, 0.9);
+}
+.map-node small { display: block; margin-top: 4px; color: rgba(42, 38, 34, 0.68); font-weight: 600; }
+.map-node svg { width: 48px; height: 48px; }
+.map-node.current { border-color: var(--ai); box-shadow: 0 0 0 4px rgba(30, 74, 115, 0.16); }
+.map-node.cleared { background: #fffdf6; border-color: rgba(184, 145, 61, 0.82); }
+.map-node.dan { cursor: default; }
 .next-panel { padding: 18px; align-self: start; position: sticky; top: 16px; }
 .next-panel h2 { margin-top: 0; }
 
