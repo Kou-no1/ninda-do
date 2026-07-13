@@ -119,3 +119,12 @@
 - 試験中は10正打しても連撃UI・手裏剣とも0。100連で `save.best.combo === 100`、二つ名 `hyakuren` 付与を確認。`prefers-reduced-motion: reduce` では手裏剣の飛翔アニメが `none` になることを確認。
 - 合言葉コードは17個目の二つ名を含む状態で発行→削除→復元し、`hyakuren` を含む17件すべてが戻ることを確認（新コード本体21文字）。
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-02 §5
+
+- 表示テーマは `save.settings.display` に `"night"|"light"` で保存し、`NindaApp.applyTheme()` が `body[data-theme]` に反映する。
+- 明モードの色変更は `body[data-theme="light"]` のCSS変数ブロックに集約した。フォーカス・現在地・次キーのリングも変数化し、明モードでは2px実線リングになるようにした。
+- 設定画面の「あかるいひょうじ（プロジェクタ・けいじ用）」チェックで即時反映し、リロード後も保持されることを通常Chrome CDPで確認。
+- 明モードコントラスト実測: 本文 `--tsuki` on `--yoru` = 12.86:1、S2お題札 `--sumi` on `--paper` = 14.29:1。
+- §5.2 受入確認: 明モード保存値 `light`、`body[data-theme="light"]`、現在地リングが2px `--chochin`、下忍前の免状にKPM行なし、印刷免状は明モードでも白地・墨文字固定を確認。コンソールイベント0。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。

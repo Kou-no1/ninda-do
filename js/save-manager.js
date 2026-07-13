@@ -36,7 +36,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       keyStats: {},
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0 },
       streak: { last: "", days: 0 },
-      settings: { se: true, voice: true },
+      settings: { se: true, voice: true, display: "night" },
       eventLog: []
     };
   }
@@ -229,7 +229,8 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function setSetting(key, value) {
     return update((saveData) => {
-      saveData.settings[key] = !!value;
+      if (key === "display") saveData.settings.display = value === "light" ? "light" : "night";
+      else saveData.settings[key] = !!value;
     });
   }
 

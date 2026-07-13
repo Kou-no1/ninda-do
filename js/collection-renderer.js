@@ -166,6 +166,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     const code = SaveManager.exportCode(save);
     mount.innerHTML = `<label class="setting-row"><input type="checkbox" id="seSetting" ${save.settings.se ? "checked" : ""}> 効果音をならす</label>
       <label class="setting-row"><input type="checkbox" id="voiceSetting" ${save.settings.voice ? "checked" : ""}> 入門で読み上げる</label>
+      <label class="setting-row"><input type="checkbox" id="displaySetting" ${save.settings.display === "light" ? "checked" : ""}> あかるいひょうじ（プロジェクタ・けいじ用）</label>
       <div class="teacher-menu">
         <a href="poster.html" target="_blank" rel="noopener">せんせいメニュー: ゆびのいろポスターをひらく</a>
       </div>
@@ -183,6 +184,10 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       </div>`;
     document.getElementById("seSetting").addEventListener("change", (event) => SaveManager.setSetting("se", event.target.checked));
     document.getElementById("voiceSetting").addEventListener("change", (event) => SaveManager.setSetting("voice", event.target.checked));
+    document.getElementById("displaySetting").addEventListener("change", (event) => {
+      SaveManager.setSetting("display", event.target.checked ? "light" : "night");
+      if (globalThis.NindaApp) NindaApp.applyTheme();
+    });
     document.getElementById("restoreButton").addEventListener("click", () => {
       const message = document.getElementById("restoreMessage");
       try {

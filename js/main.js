@@ -24,6 +24,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     wireImeGuard();
     wireEscape();
     AudioManager.init();
+    applyTheme();
     if (SaveManager.load()) {
       byId("continueButton").hidden = false;
     }
@@ -67,6 +68,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   function startNew(stageId) {
     const name = byId("ninjaName").value || "しのびまる";
     SaveManager.create(name, stageId);
+    applyTheme();
     byId("continueButton").hidden = false;
     showScreen("S1");
   }
@@ -136,6 +138,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   }
 
   function showScreen(id) {
+    applyTheme();
     currentScreen = id;
     screens.forEach((screenId) => {
       const el = byId(screenId);
@@ -222,6 +225,11 @@ const NindaApp = globalThis.NindaApp = (function () {
     return stage.label;
   }
 
+  function applyTheme() {
+    const save = SaveManager.load();
+    document.body.dataset.theme = save && save.settings && save.settings.display === "light" ? "light" : "night";
+  }
+
   document.addEventListener("DOMContentLoaded", init);
 
   return {
@@ -230,6 +238,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     showScreen,
     renderHome,
     currentStage,
+    applyTheme,
     currentScreen() { return currentScreen; }
   };
 })();

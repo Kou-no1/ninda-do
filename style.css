@@ -12,7 +12,29 @@
   --take: #8FB878;
   --line: rgba(236, 231, 216, 0.16);
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+  --hover-ring-shadow: 0 0 0 3px rgba(232, 163, 61, 0.22);
+  --focus-ring-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35);
+  --current-ring-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35), 0 0 24px rgba(232, 163, 61, 0.22);
+  --next-key-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35);
   color-scheme: dark;
+}
+
+body[data-theme="light"] {
+  --yoru: #F3EDDF;
+  --yoru-deep: #E3DAC4;
+  --tsuki: #2A2622;
+  --chochin: #B06E12;
+  --ai: #1E4A73;
+  --shu: #C0392F;
+  --kin: #8F6B23;
+  --take: #4C6B39;
+  --line: rgba(42, 38, 34, 0.2);
+  --shadow: 0 10px 30px rgba(42, 38, 34, 0.13);
+  --hover-ring-shadow: 0 0 0 2px var(--chochin), var(--shadow);
+  --focus-ring-shadow: 0 0 0 2px var(--chochin), var(--shadow);
+  --current-ring-shadow: 0 0 0 2px var(--chochin), var(--shadow);
+  --next-key-shadow: 0 0 0 2px var(--chochin);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -42,12 +64,12 @@ button {
 
 button:hover {
   border-color: var(--chochin);
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.22);
+  box-shadow: var(--hover-ring-shadow);
 }
 button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
 button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .screen {
@@ -188,7 +210,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .map-node svg { width: 48px; height: 48px; }
 .map-node.current {
   border-color: var(--chochin);
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35), 0 0 24px rgba(232, 163, 61, 0.22);
+  box-shadow: var(--current-ring-shadow);
 }
 .map-node.cleared { border-color: rgba(232, 163, 61, 0.62); }
 .map-node.dan { cursor: default; transform: translateY(-20px); }
@@ -307,7 +329,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-weight: 800;
   text-transform: uppercase;
 }
-.key.next { border-color: var(--chochin) !important; box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35); color: var(--chochin); }
+.key.next { border-color: var(--chochin) !important; box-shadow: var(--next-key-shadow); color: var(--chochin); }
 .hand-guide svg { width: min(620px, 100%); height: auto; }
 .rescue-flash { animation: missFlash 180ms ease-out; }
 
@@ -335,7 +357,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 .scroll-card:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35);
+  box-shadow: var(--focus-ring-shadow);
   border-color: var(--chochin);
 }
 .scroll-cord {
@@ -432,7 +454,7 @@ button.tanzaku {
 }
 button.tanzaku:hover {
   border-color: var(--chochin);
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.22), var(--shadow);
+  box-shadow: var(--hover-ring-shadow);
 }
 button.tanzaku:disabled {
   opacity: 1;
@@ -459,7 +481,7 @@ button.tanzaku:disabled {
 .tanzaku-lantern svg { width: 100%; height: 100%; filter: drop-shadow(0 0 8px rgba(232, 163, 61, 0.58)); }
 .nickname-card.equipped .tanzaku {
   border-color: var(--chochin);
-  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.26), var(--shadow);
+  box-shadow: var(--focus-ring-shadow);
 }
 .locked-silhouette {
   background: var(--yoru-deep);
