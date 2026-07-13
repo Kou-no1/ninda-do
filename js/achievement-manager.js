@@ -5,7 +5,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
     const save = SaveManager.load();
     if (!save || save.nicknames.includes(id)) return false;
     SaveManager.grantNickname(id);
-    toast(NICKNAME_DATA.find((item) => item.id === id)?.name || id);
+    toast(`二つ名をえた: ${NICKNAME_DATA.find((item) => item.id === id)?.name || id}`);
     if (globalThis.NindaApp) NindaApp.renderHome();
     return true;
   }
@@ -32,16 +32,27 @@ const AchievementManager = globalThis.AchievementManager = (function () {
     });
   }
 
-  function toast(label) {
+  function toastScroll(jutsuId) {
+    const item = JUTSU_DATA.find((jutsu) => jutsu.id === jutsuId);
+    if (!item) return;
+    toast(`巻物をえた: ${item.name}`, item.id);
+  }
+
+  function toast(label, crestId) {
     const el = document.createElement("div");
-    el.className = "toast";
-    el.textContent = `二つ名をえた: ${label}`;
+    el.className = `toast${crestId ? " toast-with-crest" : ""}`;
+    el.innerHTML = `${crestId ? `<span class="toast-crest">${SVG_ICONS.crest(crestId)}</span>` : ""}<span>${escapeHtml(label)}</span>`;
     document.body.appendChild(el);
     window.setTimeout(() => el.remove(), 2600);
   }
 
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  }
+
   return {
     grant,
-    checkSession
+    checkSession,
+    toastScroll
   };
 })();

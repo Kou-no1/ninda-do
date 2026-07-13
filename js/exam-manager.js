@@ -58,7 +58,9 @@ const ExamManager = globalThis.ExamManager = (function () {
         const passed = summary.accuracy >= stage.exam.accuracy;
         state.outcome = { passed, requiredAccuracy: stage.exam.accuracy };
         if (passed) {
+          const beforeScrolls = SaveManager.ensure().scrolls.slice();
           SaveManager.grantStageClear(stage.id, { acc: summary.accuracy });
+          toastNewScrolls(stage, beforeScrolls);
           if (summary.miss === 0 && globalThis.AchievementManager) AchievementManager.grant("seijaku");
           if (stage.guideLevelExam === 0 && globalThis.AchievementManager) AchievementManager.grant("kaigan");
           if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
@@ -174,6 +176,15 @@ const ExamManager = globalThis.ExamManager = (function () {
 
   function bestKpm(summaries) {
     return summaries.reduce((best, item) => Math.max(best, item.summary.kpm || 0), 0);
+  }
+
+  function toastNewScrolls(stage, beforeScrolls) {
+    if (!globalThis.AchievementManager || !AchievementManager.toastScroll) return;
+    const awarded = (stage.jutsu || []).slice();
+    if (stage.id === "kyu1") awarded.push("shippu");
+    awarded.filter((id) => !beforeScrolls.includes(id)).forEach((id, index) => {
+      window.setTimeout(() => AchievementManager.toastScroll(id), index * 220);
+    });
   }
 
   function startJissen(menuId) {

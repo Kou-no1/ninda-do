@@ -254,17 +254,173 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .hand-guide svg { width: min(620px, 100%); height: auto; }
 .rescue-flash { animation: missFlash 180ms ease-out; }
 
-.collection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.collection-card {
-  border: 2px solid rgba(42, 38, 34, 0.18);
+.collection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.crest-svg { width: 100%; height: 100%; display: block; }
+.crest-ring, .crest-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.crest-ring { stroke-width: 4; }
+.crest-line { stroke-width: 6; }
+.crest-line.thin { stroke-width: 4; }
+.crest-dot { fill: currentColor; stroke: none; }
+.scroll-card {
+  position: relative;
+  min-height: 220px;
+  border: 2px solid var(--line);
   border-radius: 8px;
+  background: var(--yoru-deep);
+  color: var(--tsuki);
+  padding: 18px 12px 12px;
+  overflow: hidden;
+}
+.scroll-card:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.35);
+  border-color: var(--chochin);
+}
+.scroll-cord {
+  position: absolute;
+  top: 8px;
+  left: 18px;
+  right: 18px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ai);
+}
+.gold-cord .scroll-cord { background: var(--kin); }
+.ai-cord .scroll-cord { background: var(--ai); }
+.open-scroll {
+  min-height: 184px;
+  display: grid;
+  grid-template-columns: 18px 1fr 18px;
+  align-items: stretch;
+}
+.scroll-roll {
+  background: linear-gradient(90deg, var(--washi), var(--paper));
+  border: 2px solid rgba(42, 38, 34, 0.2);
+  box-shadow: inset 0 0 0 3px rgba(42, 38, 34, 0.04);
+}
+.scroll-roll.left { border-radius: 10px 0 0 10px; }
+.scroll-roll.right { border-radius: 0 10px 10px 0; transform: scaleX(-1); }
+.scroll-body {
   background: var(--paper);
   color: var(--sumi);
-  padding: 14px;
-  min-height: 128px;
-  box-shadow: var(--shadow);
+  border-block: 2px solid rgba(42, 38, 34, 0.2);
+  padding: 18px 14px 14px;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
 }
-.collection-card.locked { opacity: 0.48; }
+.crest-medallion {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--yoru-deep);
+  color: var(--tsuki);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
+}
+.scroll-body h2 { margin: 0; font-size: 20px; line-height: 1.35; }
+.scroll-body p { margin: 0; font-size: 14px; line-height: 1.55; }
+.closed-scroll {
+  min-height: 184px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: rgba(236, 231, 216, 0.48);
+  text-align: center;
+}
+.closed-scroll-svg { width: 132px; max-width: 100%; height: auto; }
+.unlock-source {
+  width: 100%;
+  margin: 0;
+  color: var(--tsuki);
+  font-weight: 800;
+  line-height: 1.5;
+}
+.nickname-grid { grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)); align-items: start; }
+.nickname-card {
+  min-height: 238px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.tanzaku {
+  position: relative;
+  width: 112px;
+  min-height: 178px;
+  border: 2px solid rgba(42, 38, 34, 0.2);
+  border-radius: 8px;
+  background: var(--washi);
+  color: var(--sumi);
+  box-shadow: var(--shadow);
+  display: grid;
+  place-items: center;
+  padding: 22px 12px 14px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  line-height: 1.7;
+  font-weight: 900;
+}
+button.tanzaku {
+  cursor: pointer;
+  min-height: 178px;
+}
+button.tanzaku:hover {
+  border-color: var(--chochin);
+  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.22), var(--shadow);
+}
+button.tanzaku:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.tanzaku-hole {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: 0.62;
+}
+.tanzaku-lantern {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+}
+.tanzaku-lantern svg { width: 100%; height: 100%; filter: drop-shadow(0 0 8px rgba(232, 163, 61, 0.58)); }
+.nickname-card.equipped .tanzaku {
+  border-color: var(--chochin);
+  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.26), var(--shadow);
+}
+.locked-silhouette {
+  background: var(--yoru-deep);
+  color: rgba(236, 231, 216, 0.48);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.mystery-mark {
+  writing-mode: horizontal-tb;
+  font-size: 32px;
+}
+.tanzaku-caption {
+  margin: 0;
+  color: var(--tsuki);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
 .tabs { display: flex; gap: 8px; margin: 12px 0; }
 .tab-button.active { background: var(--chochin); color: var(--yoru-deep); border-color: var(--chochin); }
 .license-card, .settings-panel { padding: 20px; display: grid; gap: 12px; }
@@ -292,6 +448,21 @@ textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius:
   padding: 12px 16px;
   box-shadow: var(--shadow);
   font-weight: 800;
+}
+.toast-with-crest {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toast-crest {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--sumi);
 }
 .overlay { position: fixed; inset: 0; z-index: 20; background: rgba(11, 18, 32, 0.76); display: grid; place-items: center; padding: 20px; }
 .dialog { width: min(520px, 100%); background: var(--paper); color: var(--sumi); border: 3px solid var(--chochin); border-radius: 8px; padding: 22px; text-align: center; box-shadow: var(--shadow); }

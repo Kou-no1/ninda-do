@@ -30,6 +30,36 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
       <path d="M28 28h24M28 38h18" stroke="${locked ? "rgba(236,231,216,.42)" : "var(--sumi)"}" stroke-width="4" stroke-linecap="round"/>
     </svg>`;
   },
+  crest(id) {
+    const crests = {
+      moji: `<path d="M30 70 62 38" class="crest-line"/><path d="M62 38 72 28C76 36 68 44 62 38Z" fill="currentColor" stroke="none"/><path d="M26 74c10-2 18-1 27 4" class="crest-line thin"/>`,
+      kamae: `<path d="M30 58 50 40 70 58" class="crest-line"/><circle cx="42" cy="68" r="4" class="crest-dot"/><circle cx="58" cy="68" r="4" class="crest-dot"/>`,
+      modori: `<path d="M70 39a28 28 0 1 1-34 34" class="crest-line"/><path d="M36 73 35 61M36 73 48 72" class="crest-line thin"/>`,
+      chudan: `<path d="M24 36h52M24 50h52M24 64h52" class="crest-line"/><path d="M24 50h52" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`,
+      boin: `<circle cx="50" cy="50" r="9" class="crest-dot"/><circle cx="50" cy="26" r="6" class="crest-dot"/><circle cx="50" cy="74" r="6" class="crest-dot"/><circle cx="26" cy="50" r="6" class="crest-dot"/><circle cx="74" cy="50" r="6" class="crest-dot"/>`,
+      kasata: `<g transform="rotate(0 50 50)"><circle cx="50" cy="28" r="8" class="crest-dot"/><path d="M50 36c16 8 20 21 10 32" class="crest-line"/></g><g transform="rotate(120 50 50)"><circle cx="50" cy="28" r="8" class="crest-dot"/><path d="M50 36c16 8 20 21 10 32" class="crest-line"/></g><g transform="rotate(240 50 50)"><circle cx="50" cy="28" r="8" class="crest-dot"/><path d="M50 36c16 8 20 21 10 32" class="crest-line"/></g>`,
+      nahama: `<circle cx="50" cy="32" r="8" class="crest-dot"/><circle cx="37" cy="59" r="8" class="crest-dot"/><circle cx="63" cy="59" r="8" class="crest-dot"/>`,
+      gojuon: `<text x="50" y="52" text-anchor="middle" dominant-baseline="central" font-size="42" font-weight="700" fill="currentColor">音</text>`,
+      musubi: `<ellipse cx="39" cy="50" rx="16" ry="10" transform="rotate(-30 39 50)" class="crest-line"/><ellipse cx="61" cy="50" rx="16" ry="10" transform="rotate(30 61 50)" class="crest-line"/><circle cx="50" cy="50" r="4" class="crest-dot"/>`,
+      nigori: `<circle cx="40" cy="58" r="7" class="crest-dot"/><circle cx="58" cy="40" r="7" class="crest-dot"/>`,
+      henge: `<path d="M36 68C25 52 31 35 48 28c7 18 0 32-12 40Z" class="crest-line"/><path d="M61 34c12 8 14 20 5 31-11-8-13-20-5-31Z" class="crest-line"/><path d="M44 58 60 45" class="crest-line thin"/>`,
+      bunshin: `<path d="M50 25 75 50 50 75 25 50Z" class="crest-line" stroke-dasharray="7 7" opacity=".72"/><path d="M57 18 82 43 57 68 32 43Z" class="crest-line"/>`,
+      shingan: `<path d="M28 50q22 24 44 0" class="crest-line"/><path d="M39 57l-5 8M50 61v9M61 57l5 8" class="crest-line thin"/>`,
+      menkyo: `<g transform="rotate(-40 50 50)"><path d="M24 50h52" class="crest-line"/><circle cx="24" cy="50" r="7" class="crest-line"/><circle cx="76" cy="50" r="7" class="crest-line"/></g><g transform="rotate(40 50 50)"><path d="M24 50h52" class="crest-line"/><circle cx="24" cy="50" r="7" class="crest-line"/><circle cx="76" cy="50" r="7" class="crest-line"/></g>`,
+      shippu: `<path d="M24 38c18-10 34-9 52 0" class="crest-line"/><path d="M20 51c20-12 36-12 56-1" class="crest-line"/><path d="M28 64c15-8 28-8 42-1" class="crest-line"/>`
+    };
+    return `<svg viewBox="0 0 100 100" aria-hidden="true" class="crest-svg">
+      <circle cx="50" cy="50" r="44" class="crest-ring"/>
+      ${crests[id] || crests.moji}
+    </svg>`;
+  },
+  closedScroll() {
+    return `<svg viewBox="0 0 112 72" aria-hidden="true" class="closed-scroll-svg">
+      <path d="M27 18h58a12 12 0 0 1 12 12v12a12 12 0 0 1-12 12H27a12 12 0 0 1-12-12V30a12 12 0 0 1 12-12Z" fill="none" stroke="currentColor" stroke-width="5"/>
+      <path d="M56 20v32M42 28c7 9 21 9 28 0M42 44c7-9 21-9 28 0" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+      <text x="56" y="42" text-anchor="middle" font-size="24" font-weight="900" fill="currentColor">?</text>
+    </svg>`;
+  },
   ninja() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
       <circle cx="40" cy="36" r="24" fill="var(--ai)" stroke="var(--tsuki)" stroke-width="4"/>

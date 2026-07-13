@@ -17,13 +17,23 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     const mount = document.getElementById("collectionMount");
     const save = SaveManager.ensure();
     if (!mount) return;
+    mount.className = `collection-grid ${activeTab === "nicknames" ? "nickname-grid" : "scroll-grid"}`;
     if (activeTab === "nicknames") {
       mount.innerHTML = NICKNAME_DATA.map((item) => {
         const owned = save.nicknames.includes(item.id);
         const equipped = save.equippedNickname === item.id;
-        return `<article class="collection-card ${owned ? "" : "locked"}">
-          <h2>${item.name}</h2><p>${item.desc}</p>
-          ${owned ? `<button data-equip="${item.id}" ${equipped ? "disabled" : ""}>${equipped ? "装着中" : "装着する"}</button>` : "<p>まだ手に入れていない</p>"}
+        return `<article class="nickname-card ${owned ? "owned" : "locked"} ${equipped ? "equipped" : ""}">
+          ${owned
+            ? `<button type="button" class="tanzaku" data-equip="${item.id}" ${equipped ? "disabled" : ""}>
+                <span class="tanzaku-hole" aria-hidden="true"></span>
+                ${equipped ? `<span class="tanzaku-lantern">${SVG_ICONS.lantern()}</span>` : ""}
+                <span class="tanzaku-name">${escapeHtml(item.name)}</span>
+              </button>`
+            : `<div class="tanzaku locked-silhouette">
+                <span class="tanzaku-hole" aria-hidden="true"></span>
+                <span class="mystery-mark">?</span>
+              </div>`}
+          <p class="tanzaku-caption">${escapeHtml(item.desc)}</p>
         </article>`;
       }).join("");
       mount.querySelectorAll("[data-equip]").forEach((button) => {
@@ -37,11 +47,35 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     }
     mount.innerHTML = JUTSU_DATA.map((item) => {
       const owned = save.scrolls.includes(item.id);
-      return `<article class="collection-card ${owned ? "" : "locked"}">
-        <div>${SVG_ICONS.scroll(item.id, !owned)}</div>
-        <h2>${item.name}</h2><p>${owned ? item.desc : "まだ手に入れていない"}</p>
+      return `<article class="scroll-card ${owned ? "owned" : "locked"} ${scrollCordClass(item)}" data-jutsu-id="${escapeHtml(item.id)}" tabindex="0">
+        <span class="scroll-cord" aria-hidden="true"></span>
+        ${owned
+          ? `<div class="open-scroll">
+              <div class="scroll-roll left" aria-hidden="true"></div>
+              <div class="scroll-body">
+                <div class="crest-medallion">${SVG_ICONS.crest(item.crest || item.id)}</div>
+                <h2>${escapeHtml(item.name)}</h2>
+                <p>${escapeHtml(item.desc)}</p>
+              </div>
+              <div class="scroll-roll right" aria-hidden="true"></div>
+            </div>`
+          : `<div class="closed-scroll">
+              ${SVG_ICONS.closedScroll()}
+              <p class="unlock-source">${escapeHtml(unlockSource(item.id))}</p>
+            </div>`}
       </article>`;
     }).join("");
+  }
+
+  function scrollCordClass(item) {
+    return item.kind === "maki" || item.id === "shippu" ? "gold-cord" : "ai-cord";
+  }
+
+  function unlockSource(jutsuId) {
+    if (jutsuId === "shippu") return "免許皆伝で修得できる";
+    const stage = CURRICULUM_DATA.stages.find((item) => (item.jutsu || []).includes(jutsuId));
+    if (!stage) return "修行で修得できる";
+    return `${stage.label}「${stage.title}」で修得できる`;
   }
 
   function renderLicense() {
