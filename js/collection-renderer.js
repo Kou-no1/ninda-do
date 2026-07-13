@@ -83,9 +83,8 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     if (!mount) return;
     const save = SaveManager.ensure();
     const nickname = NICKNAME_DATA.find((item) => item.id === save.equippedNickname);
-    const dan = RANK_DATA.dans.find((item) => item.id === save.dan);
-    const stage = CURRICULUM_DATA.stages.find((item) => item.id === save.currentStage);
-    const rank = dan ? dan.label : stage ? stage.label : "入門";
+    const rank = rankLabel(save);
+    const canShowSpeed = save.dan && save.dan !== "none";
     mount.innerHTML = `<div class="license-head">${SVG_ICONS.ninja()}<div><p class="eyebrow">忍者免状</p><h2>${escapeHtml(save.name)}</h2></div></div>
       <dl class="license-list">
         <dt>二つ名</dt><dd>${nickname ? nickname.name : "なし"}</dd>
@@ -93,16 +92,71 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <dt>累計正打</dt><dd>${save.totals.correct}</dd>
         <dt>累計ミス</dt><dd>${save.totals.miss}</dd>
         <dt>最高気配</dt><dd>${save.best.rhythm || "—"}</dd>
-        <dt>最高KPM</dt><dd>${save.best.kpm || 0}</dd>
+        <dt>最大連撃</dt><dd>${save.best.combo || 0}</dd>
+        ${canShowSpeed ? `<dt>最高KPM</dt><dd>${save.best.kpm || 0}</dd>` : ""}
       </dl>
+      <div class="button-row license-actions">
+        <button type="button" id="printLicenseButton">めんじょうを いんさつする</button>
+      </div>
       <div class="passcode-box">
         <button id="makePasscode">合言葉コードを出す</button>
         <output id="passcodeOutput"></output>
         <p class="hint">うちこみの記録はもどらないよ。</p>
       </div>`;
+    renderPrintLicense(save);
+    document.getElementById("printLicenseButton").addEventListener("click", () => {
+      renderPrintLicense(SaveManager.ensure());
+      window.print();
+    });
     document.getElementById("makePasscode").addEventListener("click", () => {
       document.getElementById("passcodeOutput").textContent = SaveManager.exportCode();
     });
+  }
+
+  function rankLabel(save) {
+    const dan = RANK_DATA.dans.find((item) => item.id === save.dan);
+    const stage = CURRICULUM_DATA.stages.find((item) => item.id === save.currentStage);
+    return dan ? dan.label : stage ? stage.label : "入門";
+  }
+
+  function renderPrintLicense(save) {
+    const mount = document.getElementById("printLicense");
+    if (!mount) return;
+    const nickname = NICKNAME_DATA.find((item) => item.id === save.equippedNickname);
+    const rank = rankLabel(save);
+    const scrolls = save.scrolls.map((id) => JUTSU_DATA.find((item) => item.id === id)).filter(Boolean);
+    const recentScrolls = scrolls.slice(-3).reverse();
+    const date = new Date().toLocaleDateString("ja-JP");
+    const crestHtml = recentScrolls.length
+      ? recentScrolls.map((item) => `<span class="print-crest" title="${escapeHtml(item.name)}">${SVG_ICONS.crest(item.crest || item.id)}</span>`).join("")
+      : `<span class="print-crest empty">${SVG_ICONS.crest("kamae")}</span>`;
+    mount.innerHTML = `<article class="print-license-card">
+      <div class="print-license-frame">
+        <div class="print-logo-crest">${SVG_ICONS.crest("kamae")}</div>
+        <h1><ruby>免状<rt>めんじょう</rt></ruby></h1>
+        <p class="print-license-name">${escapeHtml(save.name)} <span>殿</span></p>
+        <p class="print-license-text">右の者、<ruby>忍打道<rt>にんだどう</rt></ruby>の<ruby>修行<rt>しゅぎょう</rt></ruby>に励み、${escapeHtml(rank)}に至ったことを証する。</p>
+        <p class="print-rank">${escapeHtml(rank)}</p>
+        <p class="print-nickname">${nickname ? escapeHtml(nickname.name) : "二つ名なし"}</p>
+        <div class="print-scrolls">
+          <p><ruby>修得<rt>しゅうとく</rt></ruby>した<ruby>術<rt>じゅつ</rt></ruby>: ${scrolls.length} / ${JUTSU_DATA.length}</p>
+          <div class="print-crest-row">${crestHtml}</div>
+        </div>
+        <dl class="print-records">
+          <dt><ruby>最高気配<rt>さいこうけはい</rt></ruby></dt><dd>${escapeHtml(save.best.rhythm || "—")}</dd>
+          <dt><ruby>累計正打<rt>るいけいせいだ</rt></ruby></dt><dd>${numberText(save.totals.correct)}</dd>
+          <dt><ruby>最大連撃<rt>さいだいれんげき</rt></ruby></dt><dd>${numberText(save.best.combo || 0)}</dd>
+        </dl>
+        <div class="print-footer">
+          <p>発行日 ${escapeHtml(date)}</p>
+          <p><ruby>発行元<rt>はっこうもと</rt></ruby> キーの里 忍打道場</p>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function numberText(value) {
+    return Number(value || 0).toLocaleString("ja-JP");
   }
 
   function renderSettings() {
