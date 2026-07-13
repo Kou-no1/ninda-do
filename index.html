@@ -19,14 +19,14 @@
     <section id="S0" class="screen title-screen">
       <div id="logoMount" class="logo-mount"></div>
       <p class="catch">型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。<br>——それが、忍打道。</p>
-      <form id="nameForm" class="entry-panel">
+      <form id="nameForm" class="entry-panel" onsubmit="return NindaApp.handleStart(event, 'nyumon1')">
         <label for="ninjaName">にんじゃネーム</label>
         <input id="ninjaName" maxlength="10" autocomplete="off" placeholder="しのびまる">
         <p class="hint">ほんとうの名まえじゃなくていいよ。</p>
         <div class="button-row">
           <button type="submit" data-start-stage="nyumon1">はじめてのひと</button>
-          <button type="button" id="startKyu10" data-start-stage="kyu10">ローマ字がわかるひと</button>
-          <button type="button" id="continueButton" hidden>つづきから</button>
+          <button type="button" id="startKyu10" data-start-stage="kyu10" onclick="NindaApp.startNew('kyu10')">ローマ字がわかるひと</button>
+          <button type="button" id="continueButton" onclick="NindaApp.showScreen('S1')" hidden>つづきから</button>
         </div>
       </form>
       <p class="keyboard-note">このアプリはキーボードをつないであそんでね</p>
@@ -52,9 +52,9 @@
           <h2 id="currentRank">修行の道</h2>
           <p id="nextGoal">次の目標をえらんでね。</p>
           <div class="button-stack">
-            <button id="trainingButton">しゅぎょうする</button>
-            <button id="examButton">ためしにいどむ</button>
-            <button id="jissenButton" hidden>実戦の修行</button>
+            <button id="trainingButton" onclick="TrainingManager.start(SaveManager.ensure().currentStage)">しゅぎょうする</button>
+            <button id="examButton" onclick="ExamManager.start(SaveManager.ensure().currentStage)">ためしにいどむ</button>
+            <button id="jissenButton" onclick="ExamManager.startJissen('word-jissen')" hidden>実戦の修行</button>
             <div id="jissenMenuMount" class="button-stack jissen-menu" hidden></div>
           </div>
         </aside>

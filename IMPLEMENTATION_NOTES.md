@@ -34,3 +34,23 @@
 - 合言葉コードは 11 byte ペイロード + CRC-8 を 5bit かな32文字へ変換し、20文字（5文字×4グループ）で表示する。
 - 合言葉復元では keyStats と eventLog は復元しない。仕様通り、免状画面に「うちこみの記録はもどらないよ」と表示する。
 - 効果音はユーザー操作後に AudioContext を作成・resume する。教室利用を考えて全体音量は小さめにした。
+- ブラウザのプライバシーポリシー等で `localStorage` が例外になる場合だけ、同一セッション内のメモリ保存へフォールバックする。通常環境では仕様通り `localStorage` キー `nindaDoSaveV1` を使う。
+
+## M6
+
+- Browser検証時にフォームsubmitイベントが操作ツールから発火しないケースがあったため、タイトル画面と主要ボタンには同じ処理を呼ぶHTML属性のフォールバックも付けた。通常の `addEventListener` 経路は維持している。
+- README.md を追加し、アプリ名・キャッチコピー・公開URL・遊び方・先生向け調整ポイントを記録した。
+- Codex内のin-app Browserは `file://` 直接ナビゲーションが安全ポリシーでブロックされたため、実ブラウザ検証はローカルHTTPと通常ChromeのCDPで実施した。`file://` 適性は、外部CDN・fetch/XHR・絶対パス・module script 不使用の静的検査で補完した。
+
+## 受入セルフチェック
+
+- `node scripts/check-data-integrity.mjs`: OK（14 stages, 130 dan words, 32 dan sentences）。
+- `node --check`（`js/` と `scripts/`）: OK。
+- 合言葉コード: VM上で発行→削除→復元し、currentStage / dan / scrolls / nicknames / totals.correct(100単位) / streak.days の一致を確認。
+- 通常Chrome CDP（localhost）: 初期表示、開始、S2修行、ミスで進まない、2連続ミス救済ガイド、正打イベント、コンソールエラー0を確認。
+- 通常Chrome CDP（1366x768 / 1024x768）: S2で横スクロールなし、prompt font 48px以上を確認。
+- 静的検査: アプリコードに `fetch(` / `XMLHttpRequest` / CDN script / module script / ルート絶対パス参照がないことを確認。
+
+## 既知の課題
+
+- GitHub Pages の公開設定（Settings → Pages → main / root）はGitHub側設定のため、このリポジトリ内容からは直接変更していない。

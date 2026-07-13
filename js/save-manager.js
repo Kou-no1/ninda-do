@@ -4,6 +4,7 @@ const SaveManager = globalThis.SaveManager = (function () {
   const STORAGE_KEY = "nindaDoSaveV1";
   const DAN_ORDER = ["none", "genin", "chunin", "jonin", "tokujonin", "kage"];
   const CODE_ALPHABET = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみ";
+  const memoryStorage = {};
   let syncAdapter = null;
 
   function now() {
@@ -47,7 +48,7 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = storageGet(STORAGE_KEY);
       if (!raw) return null;
       return normalize(JSON.parse(raw));
     } catch (error) {
@@ -73,7 +74,7 @@ const SaveManager = globalThis.SaveManager = (function () {
   }
 
   function save(next) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalize(next)));
+    storageSet(STORAGE_KEY, JSON.stringify(normalize(next)));
     return next;
   }
 
@@ -189,7 +190,40 @@ const SaveManager = globalThis.SaveManager = (function () {
   }
 
   function reset() {
-    localStorage.removeItem(STORAGE_KEY);
+    storageRemove(STORAGE_KEY);
+  }
+
+  function storageGet(key) {
+    try {
+      if (typeof localStorage !== "undefined") return localStorage.getItem(key);
+    } catch (error) {
+      // Fall through to memory storage when browser privacy policy blocks localStorage.
+    }
+    return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : null;
+  }
+
+  function storageSet(key, value) {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(key, value);
+        return;
+      }
+    } catch (error) {
+      // Fall through to memory storage when browser privacy policy blocks localStorage.
+    }
+    memoryStorage[key] = String(value);
+  }
+
+  function storageRemove(key) {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(key);
+        return;
+      }
+    } catch (error) {
+      // Fall through to memory storage when browser privacy policy blocks localStorage.
+    }
+    delete memoryStorage[key];
   }
 
   function setSetting(key, value) {

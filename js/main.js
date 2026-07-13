@@ -71,6 +71,12 @@ const NindaApp = globalThis.NindaApp = (function () {
     showScreen("S1");
   }
 
+  function handleStart(event, stageId) {
+    if (event) event.preventDefault();
+    startNew(stageId || "nyumon1");
+    return false;
+  }
+
   function wireImeGuard() {
     const overlay = byId("imeOverlay");
     document.addEventListener("compositionstart", () => {
@@ -183,6 +189,8 @@ const NindaApp = globalThis.NindaApp = (function () {
   document.addEventListener("DOMContentLoaded", init);
 
   return {
+    startNew,
+    handleStart,
     showScreen,
     renderHome,
     currentStage,
