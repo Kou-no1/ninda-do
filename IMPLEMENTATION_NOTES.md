@@ -50,6 +50,7 @@
 - 通常Chrome CDP（localhost）: 初期表示、開始、S2修行、ミスで進まない、2連続ミス救済ガイド、正打イベント、コンソールエラー0を確認。
 - 通常Chrome CDP（1366x768 / 1024x768）: S2で横スクロールなし、prompt font 48px以上を確認。
 - 静的検査: アプリコードに `fetch(` / `XMLHttpRequest` / CDN script / module script / ルート絶対パス参照がないことを確認。
+- 2026-07-13 時点の公開URL `https://kou-no1.github.io/ninda-do/`: `404 Not Found`。GitHub API `/repos/Kou-no1/ninda-do/pages` も 404 のため、Pages設定がまだ有効化されていない状態と判断。
 
 ## 既知の課題
 
