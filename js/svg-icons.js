@@ -60,6 +60,13 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
       <text x="56" y="42" text-anchor="middle" font-size="24" font-weight="900" fill="currentColor">?</text>
     </svg>`;
   },
+  shuriken() {
+    return `<svg viewBox="0 0 64 64" aria-hidden="true" class="shuriken-svg">
+      <path d="M32 5 40 24 59 32 40 40 32 59 24 40 5 32 24 24Z" fill="currentColor"/>
+      <circle cx="32" cy="32" r="7" fill="var(--yoru-deep)" stroke="currentColor" stroke-width="3"/>
+      <path d="M32 13v12M51 32H39M32 51V39M13 32h12" stroke="var(--yoru-deep)" stroke-width="3" stroke-linecap="round"/>
+    </svg>`;
+  },
   ninja() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
       <circle cx="40" cy="36" r="24" fill="var(--ai)" stroke="var(--tsuki)" stroke-width="4"/>

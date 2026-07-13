@@ -8,11 +8,18 @@ const AudioManager = globalThis.AudioManager = (function () {
     if (ready) return;
     ready = true;
     const resume = () => {
+      if (!enabled("se") && !enabled("voice")) return;
       if (!ctx && (window.AudioContext || window.webkitAudioContext)) ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx && ctx.state === "suspended") ctx.resume();
+      if (!ctx) return;
+      const remove = () => {
+        document.removeEventListener("keydown", resume);
+        document.removeEventListener("pointerdown", resume);
+      };
+      if (ctx.state === "suspended") ctx.resume().then(remove).catch(() => {});
+      else remove();
     };
-    document.addEventListener("keydown", resume, { once: true });
-    document.addEventListener("pointerdown", resume, { once: true });
+    document.addEventListener("keydown", resume);
+    document.addEventListener("pointerdown", resume);
   }
 
   function enabled(kind) {
@@ -38,6 +45,25 @@ const AudioManager = globalThis.AudioManager = (function () {
 
   function correct() { tone(740, 0.06, "triangle", 0.025); }
   function miss() { tone(150, 0.12, "square", 0.018); }
+  function shuriken() {
+    if (!enabled("se") || !ctx) return;
+    const start = ctx.currentTime;
+    const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.04)), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const source = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(1800, start);
+    gain.gain.setValueAtTime(0.012, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.04);
+    source.buffer = buffer;
+    source.connect(filter).connect(gain).connect(ctx.destination);
+    source.start(start);
+    source.stop(start + 0.05);
+    tone(1800, 0.025, "triangle", 0.008, 0.01);
+  }
   function pass() { [523, 659, 784, 1046].forEach((freq, i) => tone(freq, 0.12, "triangle", 0.03, i * 0.08)); }
   function rankUp() {
     tone(100, 0.12, "sine", 0.045, 0);
@@ -54,5 +80,5 @@ const AudioManager = globalThis.AudioManager = (function () {
     window.speechSynthesis.speak(utterance);
   }
 
-  return { init, correct, miss, pass, rankUp, speak };
+  return { init, correct, miss, shuriken, pass, rankUp, speak };
 })();

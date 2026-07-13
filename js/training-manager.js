@@ -92,6 +92,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   function startRunner(config) {
     ensureKeyListener();
     cleanupTimer();
+    cleanupComboTimer();
     active = {
       config,
       items: config.items || [],
@@ -108,11 +109,16 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       startedAt: Date.now(),
       remaining: config.seconds || 0,
       timer: null,
-      complete: false
+      complete: false,
+      comboDisplay: 0,
+      comboFading: false,
+      comboFadeTimer: null,
+      lastComboMilestone: 0
     };
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     const playScreen = document.getElementById(config.screen);
     if (playScreen) playScreen.classList.toggle("shingan-mode", config.guideLevel === 0);
+    clearComboFx();
     mountTitle(config);
     clearResult();
     if (config.seconds) {
@@ -166,6 +172,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     active.session.onEvent((event) => {
       active.lastEvent = event;
       active.metrics.consume(event);
+      handleComboEvent(event);
       if (event.correct) {
         active.missCount = 0;
         if (globalThis.AudioManager) AudioManager.correct();
@@ -247,12 +254,15 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     }
     if (stats) {
       const acc = Math.round(summary.accuracy * 100);
-      const parts = [`気配:[${summary.currentRhythm}]`, `正確率:${acc}%`];
+      const parts = [`<span>気配:[${summary.currentRhythm}]</span>`, `<span>正確率:${acc}%</span>`];
       if (active.mode === "jissen") {
-        parts.push(`KPM:${Math.round(summary.kpm)}`);
-        if (active.remaining) parts.push(`残り:${active.remaining}秒`);
+        parts.push(`<span>KPM:${Math.round(summary.kpm)}</span>`);
+        if (active.remaining) parts.push(`<span>残り:${active.remaining}秒</span>`);
       }
-      stats.textContent = parts.join(" ");
+      if (comboEnabled() && active.comboDisplay >= 5) {
+        parts.push(`<span class="combo-count ${active.comboFading ? "fading" : ""}">れんげき ${active.comboDisplay}</span>`);
+      }
+      stats.innerHTML = parts.join(" ");
     }
   }
 
@@ -260,6 +270,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (!active || active.complete) return;
     active.complete = true;
     cleanupTimer();
+    cleanupComboTimer();
+    clearComboFx();
     const state = active;
     const summary = state.metrics.summary();
     const ids = activeIds();
@@ -294,8 +306,78 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (active && active.timer) window.clearInterval(active.timer);
   }
 
+  function cleanupComboTimer() {
+    if (active && active.comboFadeTimer) window.clearTimeout(active.comboFadeTimer);
+  }
+
+  function comboEnabled() {
+    return !!(active && active.config.screen === "S2" && (active.mode === "training" || active.mode === "jissen"));
+  }
+
+  function handleComboEvent(event) {
+    if (!comboEnabled()) return;
+    const summary = active.metrics.summary();
+    if (event.correct) {
+      cleanupComboTimer();
+      active.comboFading = false;
+      active.comboDisplay = summary.combo;
+      if (summary.combo > 0 && summary.combo % 10 === 0 && active.lastComboMilestone !== summary.combo) {
+        active.lastComboMilestone = summary.combo;
+        triggerShuriken(summary.combo);
+      }
+      return;
+    }
+    if (active.comboDisplay >= 5) {
+      active.comboFading = true;
+      cleanupComboTimer();
+      const run = active;
+      active.comboFadeTimer = window.setTimeout(() => {
+        if (active !== run) return;
+        active.comboDisplay = 0;
+        active.comboFading = false;
+        updateUi();
+      }, 520);
+    } else {
+      active.comboDisplay = 0;
+      active.comboFading = false;
+    }
+  }
+
+  function triggerShuriken(combo) {
+    const mount = byId("comboFx");
+    if (!mount) return;
+    if (!mount.querySelector(".combo-target")) {
+      mount.innerHTML = `<div class="combo-target" aria-hidden="true">
+        <span class="target-ring"></span>
+        <span class="shuriken-stack"></span>
+      </div>`;
+    }
+    const target = mount.querySelector(".combo-target");
+    const stack = mount.querySelector(".shuriken-stack");
+    if (!target || !stack) return;
+    if (stack.children.length < 5) {
+      const hit = document.createElement("span");
+      hit.className = "shuriken-hit";
+      hit.dataset.combo = String(combo);
+      hit.innerHTML = SVG_ICONS.shuriken();
+      stack.appendChild(hit);
+    } else {
+      target.classList.remove("combo-target-flash");
+      void target.offsetWidth;
+      target.classList.add("combo-target-flash");
+    }
+    if (globalThis.AudioManager && AudioManager.shuriken) AudioManager.shuriken();
+  }
+
+  function clearComboFx() {
+    const mount = byId("comboFx");
+    if (mount) mount.innerHTML = "";
+  }
+
   function stop(goHome) {
     cleanupTimer();
+    cleanupComboTimer();
+    clearComboFx();
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     active = null;
     if (goHome && globalThis.NindaApp) NindaApp.showScreen("S1");

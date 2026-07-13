@@ -20,6 +20,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
       if (cond.type === "streak" && save.streak.days >= cond.value) grant(item.id);
       if (cond.type === "rhythm_hold" && summary.correct >= 30 && summary.fudoRate >= 0.8) grant(item.id);
       if (cond.type === "kpm_reach" && summary.bestKpm >= cond.value) grant(item.id);
+      if (cond.type === "combo_reach" && summary.maxCombo >= cond.n) grant(item.id);
       if (cond.type === "weak_key_master" && weakMaster(save)) grant(item.id);
       if (cond.type === "all_scrolls" && JUTSU_DATA.every((jutsu) => save.scrolls.includes(jutsu.id))) grant(item.id);
     });

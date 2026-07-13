@@ -34,7 +34,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       equippedNickname: "",
       totals: { keys: 0, correct: 0, miss: 0, words: 0 },
       keyStats: {},
-      best: { shippuScore: 0, kpm: 0, rhythm: "—" },
+      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0 },
       streak: { last: "", days: 0 },
       settings: { se: true, voice: true },
       eventLog: []
@@ -144,6 +144,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       saveData.totals.words += itemCount || 0;
       if (summary.kpm) saveData.best.kpm = Math.max(saveData.best.kpm || 0, Math.round(summary.kpm));
       if (summary.rhythm && summary.rhythm !== "—") saveData.best.rhythm = betterRhythm(saveData.best.rhythm, summary.rhythm);
+      if (summary.maxCombo) saveData.best.combo = Math.max(saveData.best.combo || 0, summary.maxCombo);
       mergeKeyStats(saveData, summary.keyStats);
       addUnique(saveData.practicedStages, stageId);
       updateStreak(saveData);
@@ -257,7 +258,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     const bytes = [
       1, stageIndex & 0xff, danIndex & 0xff,
       scrollMask & 0xff, (scrollMask >> 8) & 0xff,
-      nicknameMask & 0xff, (nicknameMask >> 8) & 0xff,
+      nicknameMask & 0xff, (nicknameMask >> 8) & 0xff, (nicknameMask >> 16) & 0xff,
       correctHundreds & 0xff, (correctHundreds >> 8) & 0xff, (correctHundreds >> 16) & 0xff,
       Math.min(255, data.streak.days || 0)
     ];
@@ -268,12 +269,13 @@ const SaveManager = globalThis.SaveManager = (function () {
   function restoreCode(code, name) {
     const compact = String(code || "").replace(/[\s-]/g, "");
     const bytes = decode5(compact);
-    if (bytes.length < 12) throw new Error("あいことばが ちがうみたい");
-    const payload = bytes.slice(0, 11);
-    if (crc8(payload) !== bytes[11]) throw new Error("あいことばが ちがうみたい");
+    const parsed = parseCodePayload(bytes);
+    const payload = parsed.payload;
     const scrollMask = payload[3] | (payload[4] << 8);
-    const nicknameMask = payload[5] | (payload[6] << 8);
-    const correctHundreds = payload[7] | (payload[8] << 8) | (payload[9] << 16);
+    const nicknameMask = payload[5] | (payload[6] << 8) | ((parsed.hasNicknameHigh ? payload[7] : 0) << 16);
+    const correctOffset = parsed.hasNicknameHigh ? 8 : 7;
+    const correctHundreds = payload[correctOffset] | (payload[correctOffset + 1] << 8) | (payload[correctOffset + 2] << 16);
+    const streakDays = payload[correctOffset + 3];
     const restored = defaultSave(name || (load() && load().name) || "しのびまる", CURRICULUM_DATA.stages[payload[1]] ? CURRICULUM_DATA.stages[payload[1]].id : "nyumon1");
     restored.v = payload[0] || 1;
     restored.dan = DAN_ORDER[payload[2]] || "none";
@@ -282,8 +284,20 @@ const SaveManager = globalThis.SaveManager = (function () {
     restored.equippedNickname = restored.nicknames[0] || "";
     restored.totals.correct = correctHundreds * 100;
     restored.totals.keys = restored.totals.correct;
-    restored.streak = { last: todayJst(), days: payload[10] };
+    restored.streak = { last: todayJst(), days: streakDays };
     return save(restored);
+  }
+
+  function parseCodePayload(bytes) {
+    if (bytes.length >= 13) {
+      const payload = bytes.slice(0, 12);
+      if (crc8(payload) === bytes[12]) return { payload, hasNicknameHigh: true };
+    }
+    if (bytes.length >= 12) {
+      const payload = bytes.slice(0, 11);
+      if (crc8(payload) === bytes[11]) return { payload, hasNicknameHigh: false };
+    }
+    throw new Error("あいことばが ちがうみたい");
   }
 
   function maskFromIds(order, ids) {
@@ -321,7 +335,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     }
     const bytes = [];
     for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
-    return bytes.slice(0, 12);
+    return bytes;
   }
 
   function groupCode(code) {

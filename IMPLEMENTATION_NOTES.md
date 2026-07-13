@@ -107,3 +107,15 @@
 - §3.2 受入確認: 通常Chrome CDPでキー30個、手の指色玉10個、凡例9項目、キー色ミスマッチ0、凡例色が全て `FINGER_DATA` 由来であることを確認。
 - `poster.html` の `Page.printToPDF` はA4横1ページ（114874 bytes / 1 page）。設定画面リンクは `href="poster.html"`、`target="_blank"`、index側scriptにposter用scriptが混ざっていないことを確認。
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-02 §4
+
+- 連撃は `MetricsEngine` のセッション状態で `combo` / `maxCombo` として算出し、ミス時に0へ戻す。KPMとは独立した正確さの連続指標として扱う。
+- 連撃UIと手裏剣演出は `TrainingManager` の `screen === "S2"` かつ `mode === "training"|"jissen"` の場合だけ有効にした。S3の試験では、modeが `jissen` でも表示しない。
+- 手裏剣は10連ごとに的へ追加し、5枚で上限にする。6回目以降の10連到達は既存5枚を光らせるだけにした。
+- 新二つ名 `hyakuren` 追加により二つ名が17件になったため、合言葉コードの二つ名マスクを新規発行分のみ3byteへ拡張した。旧11byteペイロード + CRCの復元も残している。
+- `AudioManager` は効果音・読み上げが両方OFFのときAudioContextを作らないようにし、合成キー検証時の自動再生警告を避けた。
+- §4.2 受入確認: 通常Chrome CDPで4連は非表示、5連で「れんげき 5」、10連で手裏剣1枚、50連で5枚上限、ミス直後は無音フェード表示、フェード後非表示、セッション停止で的クリアを確認。
+- 試験中は10正打しても連撃UI・手裏剣とも0。100連で `save.best.combo === 100`、二つ名 `hyakuren` 付与を確認。`prefers-reduced-motion: reduce` では手裏剣の飛翔アニメが `none` になることを確認。
+- 合言葉コードは17個目の二つ名を含む状態で発行→削除→復元し、`hyakuren` を含む17件すべてが戻ることを確認（新コード本体21文字）。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。

@@ -53,7 +53,9 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
       rhythmUpdates: 0,
       keyStats: {},
       lastTs: startedAt,
-      bestKpm: 0
+      bestKpm: 0,
+      combo: 0,
+      maxCombo: 0
     };
 
     function ensureKey(key) {
@@ -85,6 +87,8 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
         if (stat) stat.attempts += 1;
         if (event.correct) {
           state.correct += 1;
+          state.combo += 1;
+          state.maxCombo = Math.max(state.maxCombo, state.combo);
           if (stat) {
             stat.sumLatency += latency;
             stat.recent.push(true);
@@ -105,6 +109,7 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
           }
         } else {
           state.miss += 1;
+          state.combo = 0;
           if (stat) {
             stat.misses += 1;
             stat.recent.push(false);
@@ -126,6 +131,8 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
           fudoRate: state.rhythmUpdates ? state.fudoUpdates / state.rhythmUpdates : 0,
           kpm,
           bestKpm: Math.max(state.bestKpm, kpm),
+          combo: state.combo,
+          maxCombo: state.maxCombo,
           keyStats: this.keyStats()
         };
       },
