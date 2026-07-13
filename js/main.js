@@ -193,7 +193,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       const alwaysOpen = stage.type === "nyumon";
       const available = alwaysOpen || cleared || current || index <= CURRICULUM_DATA.stages.findIndex((item) => item.id === currentStageId);
       return `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
-        <span class="node-icon">${current ? SVG_ICONS.ninja() : stage.type === "nyumon" ? SVG_ICONS.torii() : SVG_ICONS.scroll(stage.jutsu[0] || "stage", !cleared)}</span>
+        <span class="node-icon">${current ? SVG_ICONS.lantern() : stage.type === "nyumon" ? SVG_ICONS.torii() : SVG_ICONS.scroll(stage.jutsu[0] || "stage", !cleared)}</span>
         <span><b>${stage.label}</b><small>${stage.title}</small></span>
       </button>`;
     }).join("");

@@ -110,6 +110,9 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       timer: null,
       complete: false
     };
+    document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
+    const playScreen = document.getElementById(config.screen);
+    if (playScreen) playScreen.classList.toggle("shingan-mode", config.guideLevel === 0);
     mountTitle(config);
     clearResult();
     if (config.seconds) {
@@ -293,6 +296,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   function stop(goHome) {
     cleanupTimer();
+    document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     active = null;
     if (goHome && globalThis.NindaApp) NindaApp.showScreen("S1");
   }
