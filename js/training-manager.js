@@ -263,18 +263,26 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     const result = byId(ids.result);
     if (state.config.onComplete) state.config.onComplete(summary, state);
     if (result) {
+      const resultBody = state.config.renderResult
+        ? state.config.renderResult(summary, state)
+        : `<h2>修行の記録</h2>
+          <p>正確率 ${Math.round(summary.accuracy * 100)}% ／ 正打 ${summary.correct} ／ ミス ${summary.miss} ／ 気配 ${summary.rhythm}</p>
+          ${state.mode === "jissen" ? `<p>KPM ${Math.round(summary.kpm)}</p>` : ""}`;
+      const actions = state.config.resultActions === false
+        ? ""
+        : `<div class="button-row"><button data-result-action="again">もういちど</button><button data-result-action="home">さとにもどる</button></div>`;
       result.hidden = false;
-      result.innerHTML = `<h2>修行の記録</h2>
-        <p>正確率 ${Math.round(summary.accuracy * 100)}% ／ 正打 ${summary.correct} ／ ミス ${summary.miss} ／ 気配 ${summary.rhythm}</p>
-        ${state.mode === "jissen" ? `<p>KPM ${Math.round(summary.kpm)}</p>` : ""}
-        <div class="button-row"><button data-result-action="again">もういちど</button><button data-result-action="home">さとにもどる</button></div>`;
-      result.querySelector('[data-result-action="again"]').addEventListener("click", () => {
-        const config = state.config;
-        startRunner(config);
-      });
-      result.querySelector('[data-result-action="home"]').addEventListener("click", () => {
-        stop(true);
-      });
+      result.innerHTML = resultBody + actions;
+      const again = result.querySelector('[data-result-action="again"]');
+      const home = result.querySelector('[data-result-action="home"]');
+      if (again) again.addEventListener("click", () => {
+          const config = state.config;
+          startRunner(config);
+        });
+      if (home) home.addEventListener("click", () => {
+          stop(true);
+        });
+      if (state.config.onResultMounted) state.config.onResultMounted(result, summary, state);
     }
     if (globalThis.NindaApp) NindaApp.renderHome();
   }

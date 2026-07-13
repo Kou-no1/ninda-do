@@ -123,7 +123,23 @@ const NindaApp = globalThis.NindaApp = (function () {
     byId("examButton").disabled = !save.practicedStages.includes(stage.id);
     byId("examButton").title = byId("examButton").disabled ? UI_TEXT.noPractice : "";
     byId("jissenButton").hidden = save.dan === "none";
+    renderJissenMenu(save);
     renderMap(save, stage.id);
+  }
+
+  function renderJissenMenu(save) {
+    const mount = byId("jissenMenuMount");
+    if (!mount) return;
+    if (!save.dan || save.dan === "none") {
+      mount.hidden = true;
+      mount.innerHTML = "";
+      return;
+    }
+    mount.hidden = false;
+    mount.innerHTML = RANK_DATA.jissenMenu.map((menu) => `<button data-jissen-menu="${menu.id}">${menu.label}</button>`).join("");
+    mount.querySelectorAll("[data-jissen-menu]").forEach((button) => {
+      button.addEventListener("click", () => ExamManager.startJissen(button.dataset.jissenMenu));
+    });
   }
 
   function renderMap(save, currentStageId) {

@@ -177,6 +177,16 @@ const SaveManager = globalThis.SaveManager = (function () {
     });
   }
 
+  function grantDan(danId, result) {
+    return update((saveData) => {
+      const before = SaveManager.DAN_ORDER.indexOf(saveData.dan || "none");
+      const after = SaveManager.DAN_ORDER.indexOf(danId);
+      if (after > before) saveData.dan = danId;
+      saveData.eventLog.push(Object.assign({ ts: now(), type: "dan_pass", id: danId }, result || {}));
+      saveData.eventLog = saveData.eventLog.slice(-200);
+    });
+  }
+
   function reset() {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -197,6 +207,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     markPracticed,
     addSessionSummary,
     grantStageClear,
+    grantDan,
     mergeKeyStats,
     updateStreak,
     betterRhythm,
