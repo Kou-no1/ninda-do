@@ -174,3 +174,12 @@
 - CDP確認: 先生モードONで5級の試しを検証用1問にして合格後、OFFにした。`clearedStages / scrolls / nicknames / equippedNickname / totals / keyStats / best / streak / eventLog` はプレイ前後で完全一致した。
 - CDP確認: 先生モード中の5級試し結果に「先生モードのため、記録はのこりません」が出る。級フェーズの `examStats` と結果DOMに `KPM` は出ない。
 - CDP確認: `file://` の `index.html` でタイトル、`NindaApp` 起動、IMEオーバーレイ初期非表示を確認。1366x768 と 1024x768 でS1横スクロールなし、外部HTTP(S)リソース0、例外0。
+
+## PATCH-05 §1
+
+- `APP_VERSION` を `1.4.0` に更新し、READMEのバージョン対応表へPATCH-05行を追加した。
+- 修行・実戦・試験結果の表示先を、ページ下部の `resultMount` / `examResultMount` から汎用 `#resultOverlay` モーダルへ移した。ページ下部の結果セクションは廃止した。
+- 結果モーダルは `TrainingManager.openModal()` として共通化した。Enterは主操作（もういちど）、Escは里へ戻る、Tabはモーダル内循環、背面クリックでは閉じない。
+- 三の試しの途中フェーズは `resultActions === false` の場合にモーダルを出さず、自動で次フェーズへ進める。途中通過の表示より通し試験の流れを優先するため。
+- 級フェーズでは `state.mode !== "jissen"` の場合、結果モーダルにスコア・KPMのDOMを生成しない。実戦・番付の速度表示は `mode:"jissen"` に限定する。
+- `node --check js/main.js js/training-manager.js` と `node scripts/check-data-integrity.mjs` はOK。

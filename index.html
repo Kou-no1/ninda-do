@@ -23,6 +23,11 @@
         <div class="button-row"><button type="button" id="imeOverlayClose">わかった</button></div>
       </div>
     </div>
+    <div id="resultOverlay" class="overlay result-overlay" hidden>
+      <div class="dialog result-dialog" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle">
+        <div id="resultModalMount"></div>
+      </div>
+    </div>
 
     <section id="S0" class="screen title-screen">
       <div id="logoMount" class="logo-mount"></div>
@@ -82,7 +87,6 @@
         <div id="guideMount" class="guide-area"></div>
         <div id="progressMount" class="progress-line"></div>
         <div id="comboFx" class="combo-fx" aria-hidden="true"></div>
-        <div id="resultMount" class="result-panel" hidden></div>
       </main>
     </section>
 
@@ -98,7 +102,6 @@
         <div id="examRomajiGuide" class="romaji-guide"></div>
         <div id="examGuideMount" class="guide-area"></div>
         <div id="examProgressMount" class="progress-line"></div>
-        <div id="examResultMount" class="result-panel" hidden></div>
       </main>
     </section>
 

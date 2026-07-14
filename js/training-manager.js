@@ -3,6 +3,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   let active = null;
   let keyListenerReady = false;
+  let modalKeyListenerReady = false;
+  let modalState = null;
 
   function byId(id) {
     return document.getElementById(id);
@@ -147,18 +149,12 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       romaji: exam ? "examRomajiGuide" : "romajiGuide",
       guide: exam ? "examGuideMount" : "guideMount",
       progress: exam ? "examProgressMount" : "progressMount",
-      result: exam ? "examResultMount" : "resultMount",
       phase: exam ? "examPhase" : ""
     };
   }
 
   function clearResult() {
-    const ids = activeIds();
-    const result = byId(ids.result);
-    if (result) {
-      result.hidden = true;
-      result.innerHTML = "";
-    }
+    closeModal(false);
   }
 
   function beginItem() {
@@ -234,7 +230,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
     if (phase && active.config.phase) phase.textContent = active.config.phase;
     if (prompt) prompt.textContent = formatPrompt(item.text, item.kind);
-    if (furigana) furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : "";
+    if (furigana) furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : (item.source || "");
     if (romaji) {
       if (active.guideLevel >= 1 || active.rescue) {
         const display = active.session.displayRomaji();
@@ -274,35 +270,223 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     clearComboFx();
     const state = active;
     const summary = state.metrics.summary();
-    const ids = activeIds();
-    const result = byId(ids.result);
     if (state.config.onComplete) state.config.onComplete(summary, state);
-    if (result) {
+    if (state.config.resultActions !== false) {
       const resultBody = state.config.renderResult
         ? state.config.renderResult(summary, state)
         : `<h2>修行の記録</h2>
           <p>正確率 ${Math.round(summary.accuracy * 100)}% ／ 正打 ${summary.correct} ／ ミス ${summary.miss} ／ 気配 ${summary.rhythm}</p>
           ${state.mode === "jissen" ? `<p>KPM ${Math.round(summary.kpm)}</p>` : ""}`;
-      const actions = state.config.resultActions === false
-        ? ""
-        : `<div class="button-row"><button data-result-action="again">もういちど</button><button data-result-action="home">さとにもどる</button></div>`;
-      const teacherNote = SaveManager.isTeacherMode && SaveManager.isTeacherMode()
-        ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
-        : "";
-      result.hidden = false;
-      result.innerHTML = resultBody + teacherNote + actions;
-      const again = result.querySelector('[data-result-action="again"]');
-      const home = result.querySelector('[data-result-action="home"]');
-      if (again) again.addEventListener("click", () => {
-          const config = state.config;
-          startRunner(config);
-        });
-      if (home) home.addEventListener("click", () => {
-          stop(true);
-        });
-      if (state.config.onResultMounted) state.config.onResultMounted(result, summary, state);
+      showResultModal(resultBody, summary, state);
     }
     if (globalThis.NindaApp) NindaApp.renderHome();
+  }
+
+  function showResultModal(resultBody, summary, state) {
+    const parsed = parseResultBody(resultBody);
+    const isJissen = state.mode === "jissen";
+    const teacherNote = SaveManager.isTeacherMode && SaveManager.isTeacherMode()
+      ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
+      : "";
+    const resultData = state.resultData || {};
+    const speedHtml = isJissen
+      ? `<div class="result-speed">
+          ${Number.isFinite(resultData.score) ? `<div><span>スコア</span><strong>${resultData.score}</strong></div>` : ""}
+          <div><span>KPM</span><strong>${Math.round(summary.kpm)}</strong></div>
+          ${resultData.tier ? `<div><span>Tier</span><strong>${escapeHtml(resultData.tier)}</strong></div>` : ""}
+        </div>`
+      : "";
+    const body = `<div class="result-modal">
+        ${resultData.bestUpdated ? `<div class="result-best-ribbon">じこベスト！</div>` : ""}
+        <div class="result-main-stat">
+          <span>正確率</span>
+          <strong>${Math.round(summary.accuracy * 100)}%</strong>
+        </div>
+        <div class="result-summary-grid">
+          <div><span>気配</span><strong>${escapeHtml(summary.rhythm)}</strong></div>
+          <div><span>最大連撃</span><strong>${summary.maxCombo || 0}</strong></div>
+          <div><span>正打</span><strong>${summary.correct}</strong></div>
+          <div><span>ミス</span><strong>${summary.miss}</strong></div>
+        </div>
+        ${speedHtml}
+        ${weakKeysHtml(summary)}
+        ${parsed.rest ? `<div class="result-message">${parsed.rest}</div>` : ""}
+        ${teacherNote}
+      </div>`;
+    const actions = [
+      {
+        id: "again",
+        label: "もういちど",
+        primary: true,
+        run() {
+          const config = state.config;
+          startRunner(config);
+        }
+      }
+    ];
+    const contextAction = resultContextAction(state);
+    if (contextAction) actions.push(contextAction);
+    actions.push({
+      id: "home",
+      label: "さとへもどる",
+      run() {
+        stop(true);
+      }
+    });
+    openModal({
+      title: parsed.title || (isJissen ? "実戦の記録" : "修行の記録"),
+      bodyHtml: body,
+      actions,
+      defaultActionId: "again",
+      escapeActionId: "home"
+    });
+    const mount = byId("resultModalMount");
+    if (state.config.onResultMounted && mount) state.config.onResultMounted(mount, summary, state);
+  }
+
+  function parseResultBody(html) {
+    const template = document.createElement("template");
+    template.innerHTML = html || "";
+    const title = template.content.querySelector("h2");
+    const titleText = title ? title.textContent.trim() : "";
+    if (title) title.remove();
+    return {
+      title: titleText,
+      rest: template.innerHTML.trim()
+    };
+  }
+
+  function resultContextAction(state) {
+    if (state.config.resultContextAction) return state.config.resultContextAction;
+    if (state.config.screen === "S2" && state.mode === "training" && state.config.stageId !== "jissen") {
+      return {
+        id: "exam",
+        label: "ためしにいどむ",
+        run() {
+          const stageId = state.config.stageId;
+          closeModal(false);
+          if (globalThis.ExamManager) ExamManager.start(stageId);
+        }
+      };
+    }
+    return null;
+  }
+
+  function weakKeysHtml(summary) {
+    const weak = Object.entries(summary.keyStats || {})
+      .filter(([, stat]) => stat.attempts > 0 && stat.misses > 0)
+      .map(([key, stat]) => ({
+        key,
+        misses: stat.misses,
+        attempts: stat.attempts,
+        missRate: stat.misses / Math.max(1, stat.attempts)
+      }))
+      .sort((a, b) => b.missRate - a.missRate || b.misses - a.misses || b.attempts - a.attempts)
+      .slice(0, 3);
+    if (!weak.length) return "";
+    return `<div class="result-weak">
+      <h3>にがてだったキー</h3>
+      <div class="result-weak-list">${weak.map((item) => `<span><kbd>${escapeHtml(item.key)}</kbd> ${Math.round(item.missRate * 100)}%</span>`).join("")}</div>
+    </div>`;
+  }
+
+  function openModal(options) {
+    const overlay = byId("resultOverlay");
+    const mount = byId("resultModalMount");
+    if (!overlay || !mount) return;
+    const actions = options.actions || [];
+    const actionButtons = actions.map((action) => {
+      const classes = ["modal-action"];
+      if (action.primary) classes.push("primary");
+      return `<button type="button" class="${classes.join(" ")}" data-modal-action="${escapeHtml(action.id)}">${escapeHtml(action.label)}</button>`;
+    }).join("");
+    mount.innerHTML = `<section class="${escapeHtml(options.className || "result-modal-shell")}">
+      <h2 id="resultModalTitle">${escapeHtml(options.title || "記録")}</h2>
+      ${options.bodyHtml || ""}
+      <div class="button-row result-actions">${actionButtons}</div>
+    </section>`;
+    const actionMap = {};
+    actions.forEach((action) => {
+      actionMap[action.id] = action.run;
+      const button = mount.querySelector(`[data-modal-action="${cssEscape(action.id)}"]`);
+      if (button) button.addEventListener("click", action.run);
+    });
+    modalState = {
+      overlay,
+      mount,
+      actionMap,
+      defaultActionId: options.defaultActionId || (actions[0] && actions[0].id),
+      escapeActionId: options.escapeActionId || "",
+      previousFocus: document.activeElement
+    };
+    ensureModalKeyListener();
+    overlay.hidden = false;
+    const focus = mount.querySelector(`[data-modal-action="${cssEscape(modalState.defaultActionId)}"]`) || mount.querySelector("button");
+    if (focus) focus.focus();
+  }
+
+  function ensureModalKeyListener() {
+    if (modalKeyListenerReady) return;
+    modalKeyListenerReady = true;
+    document.addEventListener("keydown", (event) => {
+      if (!modalState || modalState.overlay.hidden) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        runModalAction(modalState.escapeActionId);
+        return;
+      }
+      if (event.key === "Enter" && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        runModalAction(modalState.defaultActionId);
+        return;
+      }
+      if (event.key === "Tab") trapModalFocus(event);
+    });
+  }
+
+  function runModalAction(actionId) {
+    if (!modalState || !actionId) return;
+    const action = modalState.actionMap[actionId];
+    if (action) action();
+  }
+
+  function trapModalFocus(event) {
+    const focusable = Array.from(modalState.overlay.querySelectorAll("button, [href], input, textarea, select, [tabindex]:not([tabindex='-1'])"))
+      .filter((element) => !element.disabled && element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function closeModal(restoreFocus) {
+    if (!modalState) {
+      const overlay = byId("resultOverlay");
+      const mount = byId("resultModalMount");
+      if (overlay) overlay.hidden = true;
+      if (mount) mount.innerHTML = "";
+      return;
+    }
+    const previousFocus = modalState.previousFocus;
+    modalState.overlay.hidden = true;
+    modalState.mount.innerHTML = "";
+    modalState = null;
+    if (restoreFocus && previousFocus && previousFocus.focus) previousFocus.focus();
+  }
+
+  function isEditableTarget(target) {
+    return !!(target && target.closest && target.closest("input, textarea, [contenteditable]"));
+  }
+
+  function cssEscape(value) {
+    if (globalThis.CSS && CSS.escape) return CSS.escape(value);
+    return String(value).replace(/"/g, "\\\"");
   }
 
   function cleanupTimer() {
@@ -381,6 +565,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     cleanupTimer();
     cleanupComboTimer();
     clearComboFx();
+    closeModal(false);
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     active = null;
     if (goHome && globalThis.NindaApp) NindaApp.showScreen("S1");
@@ -407,6 +592,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     sample,
     stageById,
     refByName,
-    formatPrompt
+    formatPrompt,
+    openModal,
+    closeModal
   };
 })();
