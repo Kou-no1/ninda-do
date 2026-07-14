@@ -144,3 +144,14 @@
 - 静的検索で `fetch(` / `XMLHttpRequest` / `type="module"` / ルート絶対 `src`・`href` / 許可外HTTPS参照がないことを確認。
 - 1366x768: S2修行で横スクロールなし、お題文字72px、級段階KPM表示なし。1024x768明モード: S1/S2横スクロールなし、お題文字61.44px、級段階KPM表示なし。
 - 最終 `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-03
+
+- `InputEngine.handleKey()` の正打経路で、`completeUnitIfReady()` を先に実行してから `emit(true, ...)` するようにした。購読側の `updateUi()` がイベント時点で遷移後の `nextExpectedKeys()` を読めるようにするため。
+- 打鍵イベントの `kana` / `unitIndex` は、状態遷移前のsnapshotを渡して維持した。ミス帰属、2連続ミス救済、キー統計の意味を変えないため。
+- `ん` の単打確定待ちでは、`nextExpectedKeys()` に通常の `nn` 継続キーだけでなく次ユニット先頭キーも含めるようにした。`ninja` の `nin` 後に次キー `j` が点灯するようにするため。
+- `scripts/check-data-integrity.mjs` にガイド追従検証を追加した。MUSTケースの全合格入力例と印 `asdf` で、correctイベント時点の `session.nextExpectedKeys()` が次入力キーを含むことを検査する。
+- CDP確認: S3の9級相当の印 `asdf` で開始時 `a`、`a`後 `s`、`s`後 `d`、`d`後 `f` が点灯し、各時点で手SVGの指点灯も1件あることを確認。
+- CDP確認: かな語 `にんじゃ` で `n`後 `i`、`i`後 `n/x`、`nin`後 `j/n/z` が点灯し、ユニット境界で消灯しないことを確認。
+- CDP確認: guideLevel 0 で同一文字2連続ミス時、救済のキーボード・手SVG・次キー `a`・朱フラッシュが従来どおり出ることを確認。級フェーズのKPM表示なし、コンソールイベント0。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。

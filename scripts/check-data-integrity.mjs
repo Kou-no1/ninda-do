@@ -217,16 +217,40 @@ function runInput(text, keys) {
   return { missed, done: session.isDone() };
 }
 
+function checkGuideFollow(text, keys, label) {
+  const session = InputEngine.start(text);
+  let keyIndex = -1;
+  session.onEvent((event) => {
+    if (!event.correct || keyIndex >= keys.length - 1) return;
+    const next = session.nextExpectedKeys();
+    const nextKey = keys[keyIndex + 1];
+    const nth = `${keyIndex + 1}打目`;
+    ok(next.length > 0, `NG [guide] "${label}" ${nth}: イベント時点の nextExpectedKeys が空`);
+    ok(next.includes(nextKey), `NG [guide] "${label}" ${nth}: イベント時点の nextExpectedKeys ${JSON.stringify(next)} に次キー ${nextKey} がありません`);
+  });
+  for (let index = 0; index < keys.length; index += 1) {
+    keyIndex = index;
+    const result = session.handleKey(keys[index]);
+    if (result === "miss") {
+      ok(false, `NG [guide] "${label}" ${index + 1}打目: 正解入力で miss になりました`);
+      break;
+    }
+  }
+  ok(session.isDone(), `NG [guide] "${label}": ガイド追従検証で完走しません`);
+}
+
 for (const item of mustCases) {
   for (const input of item.good) {
     const result = runInput(item.text, input);
     ok(!result.missed && result.done, `NG [MUST] ${item.text} <= ${input} が完走しません`);
+    checkGuideFollow(item.text, input, `${item.text} <= ${input}`);
   }
   for (const input of item.bad) {
     const result = runInput(item.text, input);
     ok(result.missed || !result.done, `NG [MUST] ${item.text} <= ${input} が不正に完走しました`);
   }
 }
+checkGuideFollow("asdf", "asdf", "asdf");
 
 if (errors.length) {
   console.error(errors.join("\n"));

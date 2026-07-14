@@ -115,17 +115,23 @@
 
     function nextExpectedKeys() {
       if (state.done) return [];
-      return unique(state.candidates.map((candidate) => candidate[state.typedInUnit.length]).filter(Boolean));
+      const keys = state.candidates.map((candidate) => candidate[state.typedInUnit.length]).filter(Boolean);
+      if (isPendingSingleN()) {
+        candidatesFor(state.units, state.unitIndex + 1).forEach((candidate) => {
+          if (candidate[0]) keys.push(candidate[0]);
+        });
+      }
+      return unique(keys);
     }
 
-    function emit(correct, key, expectedKeys) {
+    function emit(correct, key, expectedKeys, snapshot) {
       const event = {
         ts: Date.now(),
         key,
         correct,
         expectedKeys: expectedKeys.slice(),
-        kana: state.units[state.unitIndex] ? state.units[state.unitIndex].kana : "",
-        unitIndex: state.unitIndex,
+        kana: snapshot ? snapshot.kana : state.units[state.unitIndex] ? state.units[state.unitIndex].kana : "",
+        unitIndex: snapshot ? snapshot.unitIndex : state.unitIndex,
         guideLevel: state.context.guideLevel,
         mode: state.context.mode
       };
@@ -174,10 +180,14 @@
           emit(false, key, expectedKeys);
           return "miss";
         }
+        const snapshot = {
+          kana: state.units[state.unitIndex] ? state.units[state.unitIndex].kana : "",
+          unitIndex: state.unitIndex
+        };
         state.typedInUnit = typed;
         state.candidates = matches;
-        emit(true, key, expectedKeys);
         completeUnitIfReady();
+        emit(true, key, expectedKeys, snapshot);
         return state.done ? "done" : "correct";
       },
       displayRomaji() {
