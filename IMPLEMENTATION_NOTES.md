@@ -155,3 +155,8 @@
 - CDP確認: かな語 `にんじゃ` で `n`後 `i`、`i`後 `n/x`、`nin`後 `j/n/z` が点灯し、ユニット境界で消灯しないことを確認。
 - CDP確認: guideLevel 0 で同一文字2連続ミス時、救済のキーボード・手SVG・次キー `a`・朱フラッシュが従来どおり出ることを確認。級フェーズのKPM表示なし、コンソールイベント0。
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-04 §1
+
+- `APP_VERSION` は `js/main.js` 冒頭の定数として定義し、設定画面の最下部に `#versionLabel` として表示する。
+- バージョン履歴は `README.md` 末尾に追記した。PATCH-03のHEADは、この作業開始時点の `74edfa4` として記録した。

@@ -1,3 +1,5 @@
+const APP_VERSION = "1.3.0";
+
 const UI_TEXT = globalThis.UI_TEXT = {
   appName: "忍打道 —NINDA DO—",
   catch: "型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。——それが、忍打道。",

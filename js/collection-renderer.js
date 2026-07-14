@@ -181,7 +181,8 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <p class="hint">消す前の合言葉: <code>${code}</code></p>
         <button id="deleteStep1">データ削除へ</button>
         <button id="deleteStep2" hidden>ほんとうに削除する</button>
-      </div>`;
+      </div>
+      <p id="versionLabel" class="version-label" tabindex="0">忍打道 —NINDA DO— v${APP_VERSION}</p>`;
     document.getElementById("seSetting").addEventListener("change", (event) => SaveManager.setSetting("se", event.target.checked));
     document.getElementById("voiceSetting").addEventListener("change", (event) => SaveManager.setSetting("voice", event.target.checked));
     document.getElementById("displaySetting").addEventListener("change", (event) => {
