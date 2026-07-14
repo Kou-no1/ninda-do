@@ -24,6 +24,11 @@ const FILES = [
   "data/words/kyu1-words.js",
   "data/words/dan-words.js",
   "data/words/dan-sentences.js",
+  "data/words/michi-genin.js",
+  "data/words/michi-chunin.js",
+  "data/words/michi-jonin.js",
+  "data/words/michi-tokujonin.js",
+  "data/words/michi-kage.js",
   "js/input-engine.js"
 ];
 
@@ -38,7 +43,8 @@ const errors = [];
 const ok = (condition, message) => { if (!condition) errors.push(message); };
 const {
   FINGER_DATA, ROMAJI_TABLE, JUTSU_DATA, NICKNAME_DATA, CURRICULUM_DATA,
-  RANK_DATA, InputEngine, DAN_WORDS, DAN_SENTENCES
+  RANK_DATA, InputEngine, DAN_WORDS, DAN_SENTENCES,
+  MICHI_GENIN, MICHI_CHUNIN, MICHI_JONIN, MICHI_TOKUJONIN, MICHI_KAGE
 } = context;
 
 const STAGES = CURRICULUM_DATA.stages;
@@ -115,6 +121,28 @@ function checkWordQuality(label, list, options = {}) {
   }
 }
 
+function entryKana(entry) {
+  return typeof entry === "string" ? entry : entry && entry.kana;
+}
+
+function checkMichiQuality(course, ref) {
+  ok(ref && ref.course === course.id, `NG [${course.id}] course定義が不正です`);
+  const items = ref && Array.isArray(ref.items) ? ref.items : [];
+  ok(items.length >= 30, `NG [${course.id}] items は30本以上必要です`);
+  const kanaList = items.map(entryKana);
+  ok(uniqueItems(kanaList), `NG [${course.id}] 語彙に重複があります`);
+  for (const entry of items) {
+    const kana = entryKana(entry);
+    ok(typeof kana === "string" && kana.length > 0, `NG [${course.id}] kana が不足しています`);
+    ok(kanaRe.test(kana || ""), `NG [${course.id}] "${kana}": ひらがな・ー・、・。以外を含みます`);
+    if (typeof entry === "object") {
+      ok(typeof entry.kana === "string" && entry.kana.length > 0, `NG [${course.id}] オブジェクト形式の kana が不足しています`);
+      if ("display" in entry) ok(typeof entry.display === "string" && entry.display.length > 0, `NG [${course.id}] display が空です`);
+      if ("source" in entry) ok(typeof entry.source === "string" && entry.source.length > 0, `NG [${course.id}] source が空です`);
+    }
+  }
+}
+
 for (const stage of STAGES) {
   ok(wordRef(stage.wordsRef), `NG [${stage.id}] wordsRef ${stage.wordsRef} が存在しません`);
   for (const jutsu of stage.jutsu) ok(jutsuIds.has(jutsu), `NG [${stage.id}] jutsu ${jutsu} が存在しません`);
@@ -170,14 +198,59 @@ for (const text of DAN_WORDS.words.concat(DAN_SENTENCES.sentences)) {
   ok(InputEngine.isTypeable(text, allKeys), `NG [dan] "${text}": 全キーでも打てる経路がありません`);
 }
 
+const michiRefs = {
+  MICHI_GENIN,
+  MICHI_CHUNIN,
+  MICHI_JONIN,
+  MICHI_TOKUJONIN,
+  MICHI_KAGE
+};
+for (const course of RANK_DATA.banzuke.courses) {
+  const ref = michiRefs[course.wordsRef];
+  checkMichiQuality(course, ref);
+  for (const entry of (ref && ref.items || [])) {
+    const kana = entryKana(entry);
+    ok(InputEngine.isTypeable(kana, allKeys), `NG [${course.id}] "${kana}": 全キーでも打てる経路がありません`);
+  }
+}
+
+const validNicknameCondTypes = new Set([
+  "stage_clear", "exam_nomiss", "rhythm_hold", "first_pass_guide0",
+  "total_correct", "streak", "dan_first_try", "weak_key_master",
+  "kpm_reach", "all_scrolls", "exam_perfect", "combo_reach",
+  "tier_reach", "tier_all"
+]);
 for (const item of NICKNAME_DATA) {
   ok(item.id && item.name && item.cond && item.cond.type, `NG [nickname] ${item.id}: 定義が不足しています`);
+  ok(validNicknameCondTypes.has(item.cond.type), `NG [nickname:${item.id}] cond.type ${item.cond.type} の評価器がありません`);
   if (item.cond.id) ok(stageIds.has(item.cond.id), `NG [nickname:${item.id}] cond.id ${item.cond.id} が存在しません`);
 }
 ok(nicknameIds.size === NICKNAME_DATA.length, "NG [nickname] id が重複しています");
 
 for (const menu of RANK_DATA.jissenMenu) {
   if (menu.source) ok(context[menu.source], `NG [jissenMenu:${menu.id}] source ${menu.source} が存在しません`);
+}
+for (const course of RANK_DATA.banzuke.courses) {
+  ok(context[course.wordsRef], `NG [banzuke:${course.id}] wordsRef ${course.wordsRef} が存在しません`);
+  ok(RANK_DATA.banzuke.tiers[course.id], `NG [banzuke:${course.id}] tierしきい値がありません`);
+}
+const tierOrder = RANK_DATA.banzuke.tierOrder.slice(1);
+for (const course of RANK_DATA.banzuke.courses) {
+  let previous = -Infinity;
+  for (const tier of tierOrder) {
+    const value = RANK_DATA.banzuke.tiers[course.id][tier];
+    ok(Number.isFinite(value), `NG [banzuke:${course.id}] ${tier} のしきい値が数値ではありません`);
+    ok(value > previous, `NG [banzuke:${course.id}] Tierしきい値が単調増加ではありません`);
+    previous = value;
+  }
+}
+for (const tier of tierOrder) {
+  let previous = -Infinity;
+  for (const course of RANK_DATA.banzuke.courses) {
+    const value = RANK_DATA.banzuke.tiers[course.id][tier];
+    ok(value >= previous, `NG [banzuke:${tier}] コース順で単調非減少ではありません`);
+    previous = value;
+  }
 }
 let previousKpm = 0;
 let previousAccuracy = 0;

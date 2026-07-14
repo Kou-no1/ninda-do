@@ -141,6 +141,8 @@ const NindaApp = globalThis.NindaApp = (function () {
   function wireEscape() {
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
+      const resultOverlay = byId("resultOverlay");
+      if (resultOverlay && !resultOverlay.hidden) return;
       if ((currentScreen === "S2" || currentScreen === "S3") && TrainingManager.isActive()) {
         event.preventDefault();
         if (confirm("修行をやめて、さとにもどる？")) TrainingManager.stop(true);
