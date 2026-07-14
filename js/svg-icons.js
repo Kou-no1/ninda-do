@@ -67,6 +67,13 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
       <path d="M32 13v12M51 32H39M32 51V39M13 32h12" stroke="var(--yoru-deep)" stroke-width="3" stroke-linecap="round"/>
     </svg>`;
   },
+  tierBadge() {
+    return `<svg viewBox="0 0 80 80" aria-hidden="true" class="tier-badge-svg">
+      <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" stroke-width="5"/>
+      <path d="M40 12 48 31 68 40 48 49 40 68 32 49 12 40 32 31Z" fill="currentColor"/>
+      <circle cx="40" cy="40" r="8" fill="var(--paper)" stroke="currentColor" stroke-width="3"/>
+    </svg>`;
+  },
   ninja() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
       <circle cx="40" cy="36" r="24" fill="var(--ai)" stroke="var(--tsuki)" stroke-width="4"/>

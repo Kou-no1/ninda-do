@@ -15,5 +15,7 @@ const NICKNAME_DATA = globalThis.NICKNAME_DATA = [
   { id: "onsoku", name: "音速の忍", cond: { type: "kpm_reach", value: 150 }, desc: "実戦でKPM150に届いた" },
   { id: "kanzen", name: "完全なる型", cond: { type: "exam_perfect" }, desc: "型の試しを正確率100%で合格" },
   { id: "hidensho", name: "秘伝書の主", cond: { type: "all_scrolls" }, desc: "巻物をすべて集めた" },
-  { id: "hyakuren", name: "百連の手", cond: { type: "combo_reach", n: 100 }, desc: "百れんぞく、ひとつもミスをしなかった" }
+  { id: "hyakuren", name: "百連の手", cond: { type: "combo_reach", n: 100 }, desc: "百れんぞく、ひとつもミスをしなかった" },
+  { id: "gekko", name: "月光", cond: { type: "tier_reach", tier: "月光" }, desc: "いずれかの道で月光にとどいた" },
+  { id: "godo", name: "五道の覇者", cond: { type: "tier_all", tier: "金" }, desc: "すべての道で金いじょうをとった" }
 ];

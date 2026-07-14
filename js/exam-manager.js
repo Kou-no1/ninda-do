@@ -197,6 +197,10 @@ const ExamManager = globalThis.ExamManager = (function () {
       return;
     }
     const menu = RANK_DATA.jissenMenu.find((item) => item.id === menuId) || RANK_DATA.jissenMenu[0];
+    if (menu.kind === "banzuke") {
+      showBanzukeCourses(save);
+      return;
+    }
     const items = buildJissenItems(menu, save);
     NindaApp.showScreen("S2");
     TrainingManager.startRunner({
@@ -235,10 +239,122 @@ const ExamManager = globalThis.ExamManager = (function () {
     return TrainingManager.sample(DAN_WORDS.words, menu.kind === "timeAttack" ? 30 : 24).map((text) => ({ text, kind: "word" }));
   }
 
+  function showBanzukeCourses(save) {
+    const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
+    const courses = RANK_DATA.banzuke && RANK_DATA.banzuke.courses || [];
+    const bodyHtml = `<div class="banzuke-course-grid">
+      ${courses.map((course) => {
+        const unlocked = teacher || danIndex(save.dan) >= danIndex(course.dan);
+        const best = save.best && save.best.banzuke && save.best.banzuke[course.id];
+        return `<button type="button" class="banzuke-course" data-banzuke-course="${course.id}" ${unlocked ? "" : "disabled"}>
+          <strong>${escapeHtml(course.label)}</strong>
+          <small>${unlocked ? `自己ベスト: ${best ? `${best.score}・${best.tier}` : "なし"}` : `${danLabel(course.dan)}から`}</small>
+        </button>`;
+      }).join("")}
+    </div>`;
+    TrainingManager.openModal({
+      title: "疾風番付",
+      bodyHtml,
+      actions: [
+        { id: "close", label: "とじる", run() { TrainingManager.closeModal(false); } }
+      ],
+      defaultActionId: "",
+      escapeActionId: "close",
+      onOpen(mount) {
+        mount.querySelectorAll("[data-banzuke-course]").forEach((button) => {
+          button.addEventListener("click", () => startBanzukeCourse(button.dataset.banzukeCourse));
+        });
+      }
+    });
+  }
+
+  function startBanzukeCourse(courseId) {
+    const course = (RANK_DATA.banzuke && RANK_DATA.banzuke.courses || []).find((item) => item.id === courseId);
+    const items = buildBanzukeItems(course);
+    if (!course || !items.length) {
+      alert("この道の語彙は、まだ準備中だよ。");
+      return;
+    }
+    TrainingManager.closeModal(false);
+    NindaApp.showScreen("S2");
+    TrainingManager.startRunner({
+      screen: "S2",
+      stageId: "banzuke",
+      title: `疾風番付「${course.label}」`,
+      items,
+      guideLevel: 1,
+      mode: "jissen",
+      seconds: RANK_DATA.banzuke.seconds,
+      resultContextAction: {
+        id: "courses",
+        label: "コースをえらぶ",
+        run() {
+          showBanzukeCourses(SaveManager.ensure());
+        }
+      },
+      onComplete(summary, state) {
+        SaveManager.addSessionSummary("banzuke", summary, state.items.length);
+        const score = banzukeScore(summary);
+        const tier = banzukeTier(course.id, score);
+        const best = SaveManager.updateBanzukeBest(course.id, { score, tier });
+        state.resultData = { score, tier, course, bestUpdated: best.updated };
+        if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
+        if (tier !== "無位" && globalThis.AudioManager) AudioManager.pass();
+      },
+      renderResult(summary, state) {
+        const result = state.resultData || { score: banzukeScore(summary), tier: banzukeTier(course.id, banzukeScore(summary)) };
+        return `<h2>疾風番付の記録</h2>
+          <p>${escapeHtml(course.label)} ／ スコア ${result.score} ／ ${escapeHtml(result.tier)}</p>
+          <p>正打 ${summary.correct} × 正確率 ${Math.round(summary.accuracy * 100)}%</p>`;
+      }
+    });
+  }
+
+  function buildBanzukeItems(course) {
+    if (!course) return [];
+    const ref = globalThis[course.wordsRef];
+    const source = ref && Array.isArray(ref.items) ? ref.items : [];
+    return TrainingManager.sample(source, 80).map((entry) => {
+      const item = typeof entry === "string" ? { kana: entry } : entry;
+      return {
+        text: item.kana,
+        kind: item.kana && item.kana.length > 12 ? "sentence" : "word",
+        display: item.display || "",
+        source: item.source || ""
+      };
+    }).filter((item) => item.text);
+  }
+
+  function banzukeScore(summary) {
+    return Math.round((summary.correct || 0) * (summary.accuracy || 0));
+  }
+
+  function banzukeTier(courseId, score) {
+    const thresholds = RANK_DATA.banzuke && RANK_DATA.banzuke.tiers && RANK_DATA.banzuke.tiers[courseId];
+    if (!thresholds) return "無位";
+    return RANK_DATA.banzuke.tierOrder.slice(1).reduce((best, tier) => score >= thresholds[tier] ? tier : best, "無位");
+  }
+
+  function danIndex(danId) {
+    return Math.max(0, SaveManager.DAN_ORDER.indexOf(danId || "none"));
+  }
+
+  function danLabel(danId) {
+    const dan = RANK_DATA.dans.find((item) => item.id === danId);
+    return dan ? dan.label : "下忍";
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  }
+
   return {
     start,
     startDanExam,
     startJissen,
-    buildJissenItems
+    buildJissenItems,
+    buildBanzukeItems,
+    banzukeScore,
+    banzukeTier
   };
 })();

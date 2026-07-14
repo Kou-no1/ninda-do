@@ -98,6 +98,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     const nickname = NICKNAME_DATA.find((item) => item.id === save.equippedNickname);
     const rank = rankLabel(save);
     const canShowSpeed = save.dan && save.dan !== "none";
+    const banzuke = bestBanzukeLabel(save);
     mount.innerHTML = `<div class="license-head">${SVG_ICONS.ninja()}<div><p class="eyebrow">忍者免状</p><h2>${escapeHtml(save.name)}</h2></div></div>
       <dl class="license-list">
         <dt>二つ名</dt><dd>${nickname ? nickname.name : "なし"}</dd>
@@ -106,6 +107,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <dt>累計ミス</dt><dd>${save.totals.miss}</dd>
         <dt>最高気配</dt><dd>${save.best.rhythm || "—"}</dd>
         <dt>最大連撃</dt><dd>${save.best.combo || 0}</dd>
+        <dt>疾風番付 最高位</dt><dd>${escapeHtml(banzuke)}</dd>
         ${canShowSpeed ? `<dt>最高KPM</dt><dd>${save.best.kpm || 0}</dd>` : ""}
       </dl>
       <div class="button-row license-actions">
@@ -140,6 +142,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     const scrolls = save.scrolls.map((id) => JUTSU_DATA.find((item) => item.id === id)).filter(Boolean);
     const recentScrolls = scrolls.slice(-3).reverse();
     const date = new Date().toLocaleDateString("ja-JP");
+    const banzuke = bestBanzukeLabel(save);
     const crestHtml = recentScrolls.length
       ? recentScrolls.map((item) => `<span class="print-crest" title="${escapeHtml(item.name)}">${SVG_ICONS.crest(item.crest || item.id)}</span>`).join("")
       : `<span class="print-crest empty">${SVG_ICONS.crest("kamae")}</span>`;
@@ -151,6 +154,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <p class="print-license-text">右の者、<ruby>忍打道<rt>にんだどう</rt></ruby>の<ruby>修行<rt>しゅぎょう</rt></ruby>に励み、${escapeHtml(rank)}に至ったことを証する。</p>
         <p class="print-rank">${escapeHtml(rank)}</p>
         <p class="print-nickname">${nickname ? escapeHtml(nickname.name) : "二つ名なし"}</p>
+        <p class="print-banzuke"><ruby>疾風番付<rt>しっぷうばんづけ</rt></ruby> 最高位: ${escapeHtml(banzuke)}</p>
         <div class="print-scrolls">
           <p><ruby>修得<rt>しゅうとく</rt></ruby>した<ruby>術<rt>じゅつ</rt></ruby>: ${scrolls.length} / ${JUTSU_DATA.length}</p>
           <div class="print-crest-row">${crestHtml}</div>
@@ -170,6 +174,17 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
 
   function numberText(value) {
     return Number(value || 0).toLocaleString("ja-JP");
+  }
+
+  function bestBanzukeLabel(save) {
+    const records = save.best && save.best.banzuke || {};
+    const courses = RANK_DATA.banzuke && RANK_DATA.banzuke.courses || [];
+    const order = RANK_DATA.banzuke && RANK_DATA.banzuke.tierOrder || ["無位", "銅", "銀", "金", "白金", "月光"];
+    const best = courses.map((course) => {
+      const record = records[course.id];
+      return record ? { course, record, tierIndex: order.indexOf(record.tier || "無位") } : null;
+    }).filter(Boolean).sort((a, b) => b.tierIndex - a.tierIndex || (b.record.score || 0) - (a.record.score || 0))[0];
+    return best ? `${best.record.tier}（${best.course.label}・${best.record.score}）` : "なし";
   }
 
   function renderSettings() {

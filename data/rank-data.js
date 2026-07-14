@@ -25,7 +25,25 @@ const RANK_DATA = globalThis.RANK_DATA = {
   jissenMenu: [
     { id: "word-jissen", label: "ことばの実戦", kind: "word", seconds: 60, source: "DAN_WORDS" },
     { id: "sentence-jissen", label: "文章の実戦", kind: "sentence", seconds: 90, source: "DAN_SENTENCES" },
-    { id: "shippu", label: "疾風（しっぷう）の術", kind: "timeAttack", seconds: 30, source: "DAN_WORDS" },
+    { id: "shippu", label: "疾風番付", kind: "banzuke" },
     { id: "weak", label: "弱点特訓", kind: "weak", items: 10, source: "DAN_WORDS" }
-  ]
+  ],
+  banzuke: {
+    seconds: 60,
+    tierOrder: ["無位", "銅", "銀", "金", "白金", "月光"],
+    courses: [
+      { id: "michi-genin", label: "下忍の道", dan: "genin", wordsRef: "MICHI_GENIN" },
+      { id: "michi-chunin", label: "中忍の道", dan: "chunin", wordsRef: "MICHI_CHUNIN" },
+      { id: "michi-jonin", label: "上忍の道", dan: "jonin", wordsRef: "MICHI_JONIN" },
+      { id: "michi-tokujonin", label: "特上忍の道", dan: "tokujonin", wordsRef: "MICHI_TOKUJONIN" },
+      { id: "michi-kage", label: "影の道", dan: "kage", wordsRef: "MICHI_KAGE" }
+    ],
+    tiers: {
+      "michi-genin": { "銅": 30, "銀": 45, "金": 60, "白金": 80, "月光": 100 },
+      "michi-chunin": { "銅": 40, "銀": 60, "金": 80, "白金": 100, "月光": 125 },
+      "michi-jonin": { "銅": 50, "銀": 70, "金": 95, "白金": 120, "月光": 150 },
+      "michi-tokujonin": { "銅": 60, "銀": 85, "金": 110, "白金": 140, "月光": 175 },
+      "michi-kage": { "銅": 70, "銀": 95, "金": 125, "白金": 160, "月光": 200 }
+    }
+  }
 };

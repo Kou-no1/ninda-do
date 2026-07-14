@@ -183,3 +183,14 @@
 - 三の試しの途中フェーズは `resultActions === false` の場合にモーダルを出さず、自動で次フェーズへ進める。途中通過の表示より通し試験の流れを優先するため。
 - 級フェーズでは `state.mode !== "jissen"` の場合、結果モーダルにスコア・KPMのDOMを生成しない。実戦・番付の速度表示は `mode:"jissen"` に限定する。
 - `node --check js/main.js js/training-manager.js` と `node scripts/check-data-integrity.mjs` はOK。
+
+## PATCH-05 §2
+
+- 実戦メニューの旧「疾風の術」は `id:"shippu"` のまま、表示名と内容を「疾風番付」に変更した。巻物・術の `shippu` は既存どおり残す。
+- `RANK_DATA.banzuke` に60秒設定、5コース、Tier順、コース別しきい値を追加した。しきい値はデータのみで調整できる。
+- 番付の保存は `save.best.banzuke = { [courseId]: { score, tier, date } }` とした。旧 `best.shippuScore` は互換のため残すが表示しない。
+- 先生モード中の番付プレイは、既存の `SaveManager.update()` no-opゲートと `updateBanzukeBest()` の早期returnにより、自己ベスト・進捗・二つ名を書き込まない。
+- 疾風番付のスコアは `round(正打数 × 正確率)`。結果モーダルでは `mode:"jissen"` のため、スコア・KPM・Tierを表示する。
+- Tierバッジは `SVG_ICONS.tierBadge()` で追加し、色はCSSのTierクラスから currentColor で追従する。月光は控えめな月の演出を表示する。
+- 免状（画面・印刷）へ「疾風番付 最高位」を追加した。最高位はTier順、同Tierならスコア順で選ぶ。
+- `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK（番付語彙ファイルと新integrity検査は§3で追加）。

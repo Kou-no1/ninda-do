@@ -23,9 +23,26 @@ const AchievementManager = globalThis.AchievementManager = (function () {
       if (cond.type === "rhythm_hold" && summary.correct >= 30 && summary.fudoRate >= 0.8) grant(item.id);
       if (cond.type === "kpm_reach" && summary.bestKpm >= cond.value) grant(item.id);
       if (cond.type === "combo_reach" && summary.maxCombo >= cond.n) grant(item.id);
+      if (cond.type === "tier_reach" && tierReach(save, cond.tier)) grant(item.id);
+      if (cond.type === "tier_all" && tierAll(save, cond.tier)) grant(item.id);
       if (cond.type === "weak_key_master" && weakMaster(save)) grant(item.id);
       if (cond.type === "all_scrolls" && JUTSU_DATA.every((jutsu) => save.scrolls.includes(jutsu.id))) grant(item.id);
     });
+  }
+
+  function tierValue(tier) {
+    const order = RANK_DATA.banzuke && RANK_DATA.banzuke.tierOrder || ["無位", "銅", "銀", "金", "白金", "月光"];
+    return Math.max(0, order.indexOf(tier || "無位"));
+  }
+
+  function tierReach(save, tier) {
+    return Object.values(save.best && save.best.banzuke || {}).some((record) => tierValue(record.tier) >= tierValue(tier));
+  }
+
+  function tierAll(save, tier) {
+    const records = save.best && save.best.banzuke || {};
+    const courses = RANK_DATA.banzuke && RANK_DATA.banzuke.courses || [];
+    return courses.length > 0 && courses.every((course) => tierValue(records[course.id] && records[course.id].tier) >= tierValue(tier));
   }
 
   function weakMaster(save) {

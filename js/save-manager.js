@@ -34,7 +34,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       equippedNickname: "",
       totals: { keys: 0, correct: 0, miss: 0, words: 0 },
       keyStats: {},
-      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0 },
+      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {} },
       streak: { last: "", days: 0 },
       settings: { se: true, voice: true, display: "night", teacherMode: false },
       eventLog: []
@@ -62,6 +62,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     const merged = Object.assign(base, save || {});
     merged.totals = Object.assign(base.totals, save && save.totals || {});
     merged.best = Object.assign(base.best, save && save.best || {});
+    merged.best.banzuke = Object.assign({}, base.best.banzuke, save && save.best && save.best.banzuke || {});
     merged.settings = Object.assign(base.settings, save && save.settings || {});
     merged.streak = Object.assign(base.streak, save && save.streak || {});
     merged.eventLog = Array.isArray(merged.eventLog) ? merged.eventLog.slice(-200) : [];
@@ -194,6 +195,24 @@ const SaveManager = globalThis.SaveManager = (function () {
       saveData.eventLog.push(Object.assign({ ts: now(), type: "dan_pass", id: danId }, result || {}));
       saveData.eventLog = saveData.eventLog.slice(-200);
     });
+  }
+
+  function updateBanzukeBest(courseId, result) {
+    const current = ensure();
+    const previous = current.best && current.best.banzuke ? current.best.banzuke[courseId] : null;
+    const next = {
+      score: Math.max(0, Math.round(result && result.score || 0)),
+      tier: result && result.tier || "無位",
+      date: result && result.date || todayJst()
+    };
+    if (isTeacherMode(current)) return { updated: false, best: previous || null };
+    const shouldUpdate = !previous || next.score > (previous.score || 0);
+    if (!shouldUpdate) return { updated: false, best: previous };
+    const saved = update((saveData) => {
+      if (!saveData.best.banzuke) saveData.best.banzuke = {};
+      saveData.best.banzuke[courseId] = next;
+    });
+    return { updated: true, best: saved.best.banzuke[courseId] };
   }
 
   function reset() {
@@ -368,6 +387,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     addSessionSummary,
     grantStageClear,
     grantDan,
+    updateBanzukeBest,
     mergeKeyStats,
     updateStreak,
     betterRhythm,

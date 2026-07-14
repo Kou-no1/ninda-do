@@ -230,7 +230,10 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
     if (phase && active.config.phase) phase.textContent = active.config.phase;
     if (prompt) prompt.textContent = formatPrompt(item.text, item.kind);
-    if (furigana) furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : (item.source || "");
+    if (furigana) {
+      const itemNote = [item.display, item.source].filter(Boolean).join(" ／ ");
+      furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : itemNote;
+    }
     if (romaji) {
       if (active.guideLevel >= 1 || active.rescue) {
         const display = active.session.displayRomaji();
@@ -293,11 +296,12 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ? `<div class="result-speed">
           ${Number.isFinite(resultData.score) ? `<div><span>スコア</span><strong>${resultData.score}</strong></div>` : ""}
           <div><span>KPM</span><strong>${Math.round(summary.kpm)}</strong></div>
-          ${resultData.tier ? `<div><span>Tier</span><strong>${escapeHtml(resultData.tier)}</strong></div>` : ""}
+          ${resultData.tier ? `<div class="tier-box ${tierClass(resultData.tier)}"><span>Tier</span><strong><span class="tier-badge">${SVG_ICONS.tierBadge()}</span>${escapeHtml(resultData.tier)}</strong></div>` : ""}
         </div>`
       : "";
     const body = `<div class="result-modal">
         ${resultData.bestUpdated ? `<div class="result-best-ribbon">じこベスト！</div>` : ""}
+        ${resultData.tier === "月光" ? `<div class="moon-bloom" aria-hidden="true"></div>` : ""}
         <div class="result-main-stat">
           <span>正確率</span>
           <strong>${Math.round(summary.accuracy * 100)}%</strong>
@@ -411,11 +415,12 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       const button = mount.querySelector(`[data-modal-action="${cssEscape(action.id)}"]`);
       if (button) button.addEventListener("click", action.run);
     });
+    if (typeof options.onOpen === "function") options.onOpen(mount);
     modalState = {
       overlay,
       mount,
       actionMap,
-      defaultActionId: options.defaultActionId || (actions[0] && actions[0].id),
+      defaultActionId: Object.prototype.hasOwnProperty.call(options, "defaultActionId") ? options.defaultActionId : (actions[0] && actions[0].id),
       escapeActionId: options.escapeActionId || "",
       previousFocus: document.activeElement
     };
@@ -436,6 +441,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         return;
       }
       if (event.key === "Enter" && !isEditableTarget(event.target)) {
+        if (!modalState.defaultActionId) return;
         event.preventDefault();
         runModalAction(modalState.defaultActionId);
         return;
@@ -487,6 +493,16 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   function cssEscape(value) {
     if (globalThis.CSS && CSS.escape) return CSS.escape(value);
     return String(value).replace(/"/g, "\\\"");
+  }
+
+  function tierClass(tier) {
+    return {
+      "銅": "tier-copper",
+      "銀": "tier-silver",
+      "金": "tier-gold",
+      "白金": "tier-platinum",
+      "月光": "tier-gekko"
+    }[tier] || "tier-none";
   }
 
   function cleanupTimer() {
