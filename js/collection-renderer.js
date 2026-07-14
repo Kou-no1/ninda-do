@@ -2,6 +2,9 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
   "use strict";
 
   let activeTab = "scrolls";
+  let versionTapCount = 0;
+  let versionTapTimer = null;
+  let teacherFailCount = 0;
 
   function initTabs() {
     document.querySelectorAll("[data-collection-tab]").forEach((button) => {
@@ -16,19 +19,27 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     });
     const mount = document.getElementById("collectionMount");
     const save = SaveManager.ensure();
+    const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
     if (!mount) return;
     mount.className = `collection-grid ${activeTab === "nicknames" ? "nickname-grid" : "scroll-grid"}`;
     if (activeTab === "nicknames") {
       mount.innerHTML = NICKNAME_DATA.map((item) => {
         const owned = save.nicknames.includes(item.id);
+        const preview = teacher && !owned;
         const equipped = save.equippedNickname === item.id;
-        return `<article class="nickname-card ${owned ? "owned" : "locked"} ${equipped ? "equipped" : ""}">
+        return `<article class="nickname-card ${owned ? "owned" : "locked"} ${preview ? "preview" : ""} ${equipped ? "equipped" : ""}">
+          ${preview ? `<span class="preview-label">プレビュー</span>` : ""}
           ${owned
             ? `<button type="button" class="tanzaku" data-equip="${item.id}" ${equipped ? "disabled" : ""}>
                 <span class="tanzaku-hole" aria-hidden="true"></span>
                 ${equipped ? `<span class="tanzaku-lantern">${SVG_ICONS.lantern()}</span>` : ""}
                 <span class="tanzaku-name">${escapeHtml(item.name)}</span>
               </button>`
+            : preview
+            ? `<div class="tanzaku">
+                <span class="tanzaku-hole" aria-hidden="true"></span>
+                <span class="tanzaku-name">${escapeHtml(item.name)}</span>
+              </div>`
             : `<div class="tanzaku locked-silhouette">
                 <span class="tanzaku-hole" aria-hidden="true"></span>
                 <span class="mystery-mark">?</span>
@@ -47,9 +58,11 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     }
     mount.innerHTML = JUTSU_DATA.map((item) => {
       const owned = save.scrolls.includes(item.id);
-      return `<article class="scroll-card ${owned ? "owned" : "locked"} ${scrollCordClass(item)}" data-jutsu-id="${escapeHtml(item.id)}" tabindex="0">
+      const preview = teacher && !owned;
+      return `<article class="scroll-card ${owned ? "owned" : "locked"} ${preview ? "preview" : ""} ${scrollCordClass(item)}" data-jutsu-id="${escapeHtml(item.id)}" tabindex="0">
         <span class="scroll-cord" aria-hidden="true"></span>
-        ${owned
+        ${preview ? `<span class="preview-label">プレビュー</span>` : ""}
+        ${owned || preview
           ? `<div class="open-scroll">
               <div class="scroll-roll left" aria-hidden="true"></div>
               <div class="scroll-body">
@@ -164,9 +177,11 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     if (!mount) return;
     const save = SaveManager.ensure();
     const code = SaveManager.exportCode(save);
+    const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
     mount.innerHTML = `<label class="setting-row"><input type="checkbox" id="seSetting" ${save.settings.se ? "checked" : ""}> 効果音をならす</label>
       <label class="setting-row"><input type="checkbox" id="voiceSetting" ${save.settings.voice ? "checked" : ""}> 入門で読み上げる</label>
       <label class="setting-row"><input type="checkbox" id="displaySetting" ${save.settings.display === "light" ? "checked" : ""}> あかるいひょうじ（プロジェクタ・けいじ用）</label>
+      ${teacher ? `<label class="setting-row teacher-mode-row"><input type="checkbox" id="teacherModeSetting" checked> 先生モード</label>` : ""}
       <div class="teacher-menu">
         <a href="poster.html" target="_blank" rel="noopener">せんせいメニュー: ゆびのいろポスターをひらく</a>
       </div>
@@ -182,13 +197,21 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <button id="deleteStep1">データ削除へ</button>
         <button id="deleteStep2" hidden>ほんとうに削除する</button>
       </div>
-      <p id="versionLabel" class="version-label" tabindex="0">忍打道 —NINDA DO— v${APP_VERSION}</p>`;
+      <p id="versionLabel" class="version-label" tabindex="0">忍打道 —NINDA DO— v${APP_VERSION}</p>
+      <div id="teacherUnlockMount" class="teacher-unlock" hidden></div>`;
     document.getElementById("seSetting").addEventListener("change", (event) => SaveManager.setSetting("se", event.target.checked));
     document.getElementById("voiceSetting").addEventListener("change", (event) => SaveManager.setSetting("voice", event.target.checked));
     document.getElementById("displaySetting").addEventListener("change", (event) => {
       SaveManager.setSetting("display", event.target.checked ? "light" : "night");
       if (globalThis.NindaApp) NindaApp.applyTheme();
     });
+    if (teacher) {
+      document.getElementById("teacherModeSetting").addEventListener("change", (event) => {
+        if (event.target.checked) return;
+        setTeacherMode(false);
+      });
+    }
+    wireTeacherUnlock();
     document.getElementById("restoreButton").addEventListener("click", () => {
       const message = document.getElementById("restoreMessage");
       try {
@@ -206,6 +229,114 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       SaveManager.reset();
       if (globalThis.NindaApp) NindaApp.showScreen("S0");
     });
+  }
+
+  function wireTeacherUnlock() {
+    const label = document.getElementById("versionLabel");
+    if (!label) return;
+    label.addEventListener("click", handleVersionTap);
+    label.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      handleVersionTap();
+    });
+  }
+
+  function handleVersionTap() {
+    window.clearTimeout(versionTapTimer);
+    versionTapCount += 1;
+    versionTapTimer = window.setTimeout(resetVersionTaps, 2000);
+    if (versionTapCount >= 7 && versionTapCount <= 9) {
+      showToast(`あと ${10 - versionTapCount}かい…`);
+    }
+    if (versionTapCount >= 10) {
+      resetVersionTaps();
+      showTeacherUnlock(SaveManager.isTeacherMode && SaveManager.isTeacherMode());
+    }
+  }
+
+  function resetVersionTaps() {
+    versionTapCount = 0;
+    window.clearTimeout(versionTapTimer);
+    versionTapTimer = null;
+  }
+
+  function showTeacherUnlock(active) {
+    const mount = document.getElementById("teacherUnlockMount");
+    if (!mount) return;
+    mount.hidden = false;
+    if (active) {
+      mount.innerHTML = `<div class="teacher-unlock-row">
+        <button type="button" id="teacherOffButton">先生モードをOFF</button>
+        <button type="button" id="teacherUnlockClose">とじる</button>
+      </div>`;
+      document.getElementById("teacherOffButton").addEventListener("click", () => setTeacherMode(false));
+      document.getElementById("teacherUnlockClose").addEventListener("click", closeTeacherUnlock);
+      document.getElementById("teacherOffButton").focus();
+      return;
+    }
+    mount.innerHTML = `<div class="teacher-unlock-row">
+        <input type="password" id="teacherPasscodeInput" inputmode="numeric" maxlength="8" aria-label="先生モードのパスコード">
+        <button type="button" id="teacherUnlockButton">かいじょう</button>
+        <button type="button" id="teacherUnlockClose">とじる</button>
+      </div>
+      <p id="teacherUnlockMessage" class="hint" aria-live="polite"></p>`;
+    const input = document.getElementById("teacherPasscodeInput");
+    const unlock = document.getElementById("teacherUnlockButton");
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        unlockTeacherMode();
+      }
+    });
+    unlock.addEventListener("click", unlockTeacherMode);
+    document.getElementById("teacherUnlockClose").addEventListener("click", closeTeacherUnlock);
+    input.focus();
+  }
+
+  function unlockTeacherMode() {
+    const input = document.getElementById("teacherPasscodeInput");
+    const message = document.getElementById("teacherUnlockMessage");
+    const mount = document.getElementById("teacherUnlockMount");
+    if (!input || !message || !mount) return;
+    if (input.value === TEACHER_PASSCODE) {
+      teacherFailCount = 0;
+      setTeacherMode(true);
+      return;
+    }
+    teacherFailCount += 1;
+    message.textContent = "ちがうよ";
+    mount.classList.remove("shake");
+    void mount.offsetWidth;
+    mount.classList.add("shake");
+    input.select();
+    if (teacherFailCount >= 5) {
+      teacherFailCount = 0;
+      closeTeacherUnlock();
+      resetVersionTaps();
+    }
+  }
+
+  function closeTeacherUnlock() {
+    const mount = document.getElementById("teacherUnlockMount");
+    if (!mount) return;
+    mount.hidden = true;
+    mount.innerHTML = "";
+  }
+
+  function setTeacherMode(enabled) {
+    SaveManager.setSetting("teacherMode", enabled);
+    teacherFailCount = 0;
+    showToast(enabled ? "先生モードをONにしました" : "先生モードをOFFにしました");
+    if (globalThis.NindaApp) {
+      NindaApp.applyTheme();
+      NindaApp.renderHome();
+    }
+    renderSettings();
+  }
+
+  function showToast(label) {
+    if (globalThis.AchievementManager && AchievementManager.toast) AchievementManager.toast(label);
   }
 
   function escapeHtml(value) {

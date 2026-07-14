@@ -36,7 +36,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       keyStats: {},
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0 },
       streak: { last: "", days: 0 },
-      settings: { se: true, voice: true, display: "night" },
+      settings: { se: true, voice: true, display: "night", teacherMode: false },
       eventLog: []
     };
   }
@@ -92,8 +92,14 @@ const SaveManager = globalThis.SaveManager = (function () {
     return save(created);
   }
 
-  function update(mutator) {
+  function isTeacherMode(saveData) {
+    const data = saveData || load();
+    return !!(data && data.settings && data.settings.teacherMode);
+  }
+
+  function update(mutator, options) {
     const current = ensure();
+    if (isTeacherMode(current) && !(options && options.allowTeacherWrite)) return current;
     mutator(current);
     return save(current);
   }
@@ -230,8 +236,9 @@ const SaveManager = globalThis.SaveManager = (function () {
   function setSetting(key, value) {
     return update((saveData) => {
       if (key === "display") saveData.settings.display = value === "light" ? "light" : "night";
+      else if (key === "teacherMode") saveData.settings.teacherMode = !!value;
       else saveData.settings[key] = !!value;
-    });
+    }, { allowTeacherWrite: true });
   }
 
   function setEquippedNickname(id) {
@@ -355,6 +362,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     ensure,
     create,
     update,
+    isTeacherMode,
     logEvent,
     markPracticed,
     addSessionSummary,

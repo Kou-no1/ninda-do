@@ -2,6 +2,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
   "use strict";
 
   function grant(id) {
+    if (SaveManager.isTeacherMode && SaveManager.isTeacherMode()) return false;
     const save = SaveManager.load();
     if (!save || save.nicknames.includes(id)) return false;
     SaveManager.grantNickname(id);
@@ -11,6 +12,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
   }
 
   function checkSession(summary) {
+    if (SaveManager.isTeacherMode && SaveManager.isTeacherMode()) return;
     const save = SaveManager.load();
     if (!save) return;
     NICKNAME_DATA.forEach((item) => {
@@ -54,6 +56,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
   return {
     grant,
     checkSession,
-    toastScroll
+    toastScroll,
+    toast
   };
 })();

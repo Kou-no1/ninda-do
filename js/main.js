@@ -1,4 +1,5 @@
 const APP_VERSION = "1.3.0";
+const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
   appName: "忍打道 —NINDA DO—",
@@ -13,6 +14,8 @@ const NindaApp = globalThis.NindaApp = (function () {
 
   const screens = ["S0", "S1", "S2", "S3", "S4", "S5", "S6"];
   let currentScreen = "S0";
+  let teacherStageId = "";
+  let teacherDanTargetId = "";
 
   function byId(id) {
     return document.getElementById(id);
@@ -45,12 +48,18 @@ const NindaApp = globalThis.NindaApp = (function () {
       });
     });
     byId("trainingButton").addEventListener("click", () => {
-      const save = SaveManager.ensure();
-      TrainingManager.start(save.currentStage);
+      if (SaveManager.isTeacherMode() && teacherDanTargetId) {
+        if (ExamManager.startJissen) ExamManager.startJissen("word-jissen");
+        return;
+      }
+      TrainingManager.start(currentStage().id);
     });
     byId("examButton").addEventListener("click", () => {
-      const save = SaveManager.ensure();
-      ExamManager.start(save.currentStage);
+      if (SaveManager.isTeacherMode() && teacherDanTargetId) {
+        ExamManager.startDanExam(teacherDanTargetId === "genin" ? "chunin" : teacherDanTargetId);
+        return;
+      }
+      ExamManager.start(currentStage().id);
     });
     byId("jissenButton").addEventListener("click", () => {
       if (ExamManager.startJissen) ExamManager.startJissen("word-jissen");
@@ -156,28 +165,38 @@ const NindaApp = globalThis.NindaApp = (function () {
 
   function currentStage() {
     const save = SaveManager.ensure();
+    if (SaveManager.isTeacherMode() && teacherStageId) {
+      return CURRICULUM_DATA.stages.find((stage) => stage.id === teacherStageId) || CURRICULUM_DATA.stages[0];
+    }
     return CURRICULUM_DATA.stages.find((stage) => stage.id === save.currentStage) || CURRICULUM_DATA.stages[0];
   }
 
   function renderHome() {
     const save = SaveManager.ensure();
+    const teacher = SaveManager.isTeacherMode();
     const stage = currentStage();
+    const teacherDan = teacherDanTargetId ? RANK_DATA.dans.find((item) => item.id === teacherDanTargetId) : null;
     const rankLabel = currentRankLabel(save);
     byId("currentRank").textContent = `${save.name} ／ ${rankLabel}`;
-    byId("nextGoal").textContent = stage.id === "kyu1" && save.dan !== "none"
+    byId("nextGoal").textContent = teacherDan
+      ? `先生モード: ${teacherDan.label}の実戦と三の試し`
+      : stage.id === "kyu1" && save.dan !== "none"
       ? "実戦の修行で、疾風の術をみがこう。"
       : `次は ${stage.label}「${stage.title}」`;
-    byId("examButton").disabled = !save.practicedStages.includes(stage.id);
+    byId("trainingButton").textContent = teacherDan ? "実戦をみる" : "しゅぎょうする";
+    byId("examButton").textContent = teacherDan ? "三の試しにいどむ" : "ためしにいどむ";
+    byId("examButton").disabled = !teacher && !save.practicedStages.includes(stage.id);
     byId("examButton").title = byId("examButton").disabled ? UI_TEXT.noPractice : "";
-    byId("jissenButton").hidden = save.dan === "none";
+    byId("jissenButton").hidden = !teacher && save.dan === "none";
     renderJissenMenu(save);
-    renderMap(save, stage.id);
+    renderMap(save, teacherDan ? "" : stage.id);
   }
 
   function renderJissenMenu(save) {
     const mount = byId("jissenMenuMount");
+    const teacher = SaveManager.isTeacherMode();
     if (!mount) return;
-    if (!save.dan || save.dan === "none") {
+    if (!teacher && (!save.dan || save.dan === "none")) {
       mount.hidden = true;
       mount.innerHTML = "";
       return;
@@ -192,27 +211,44 @@ const NindaApp = globalThis.NindaApp = (function () {
   function renderMap(save, currentStageId) {
     const map = byId("mapMount");
     if (!map) return;
+    const teacher = SaveManager.isTeacherMode();
+    const currentIndex = CURRICULUM_DATA.stages.findIndex((item) => item.id === currentStageId);
     const stageHtml = CURRICULUM_DATA.stages.map((stage, index) => {
       const cleared = save.clearedStages.includes(stage.id);
       const current = stage.id === currentStageId;
       const alwaysOpen = stage.type === "nyumon";
-      const available = alwaysOpen || cleared || current || index <= CURRICULUM_DATA.stages.findIndex((item) => item.id === currentStageId);
-      return `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
+      const normallyAvailable = alwaysOpen || cleared || current || index <= currentIndex;
+      const available = teacher || normallyAvailable;
+      return `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""} ${teacher && !normallyAvailable ? "teacher-open" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
         <span class="node-icon">${current ? SVG_ICONS.lantern() : stage.type === "nyumon" ? SVG_ICONS.torii() : SVG_ICONS.scroll(stage.jutsu[0] || "stage", !cleared)}</span>
         <span><b>${stage.label}</b><small>${stage.title}</small></span>
       </button>`;
     }).join("");
     const danHtml = RANK_DATA.dans.map((dan) => {
-      const active = save.dan === dan.id;
+      const active = teacher ? teacherDanTargetId === dan.id : save.dan === dan.id;
       const reached = SaveManager.DAN_ORDER.indexOf(save.dan) >= SaveManager.DAN_ORDER.indexOf(dan.id);
-      return `<div class="map-node dan ${reached ? "cleared" : ""} ${active ? "current" : ""}">
-        <span class="node-icon">${SVG_ICONS.torii()}</span><span><b>${dan.label}</b><small>実戦</small></span>
-      </div>`;
+      const className = `map-node dan ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""}`;
+      const content = `<span class="node-icon">${active ? SVG_ICONS.lantern() : SVG_ICONS.torii()}</span><span><b>${dan.label}</b><small>実戦</small></span>`;
+      return teacher
+        ? `<button type="button" class="${className}" data-dan-id="${dan.id}">${content}</button>`
+        : `<div class="${className}">${content}</div>`;
     }).join("");
     map.innerHTML = `<div class="map-path">${stageHtml}${danHtml}</div>`;
     map.querySelectorAll("[data-stage-id]").forEach((button) => {
       button.addEventListener("click", () => {
-        SaveManager.update((saveData) => { saveData.currentStage = button.dataset.stageId; });
+        if (SaveManager.isTeacherMode()) {
+          teacherStageId = button.dataset.stageId;
+          teacherDanTargetId = "";
+        } else {
+          SaveManager.update((saveData) => { saveData.currentStage = button.dataset.stageId; });
+        }
+        renderHome();
+      });
+    });
+    map.querySelectorAll("[data-dan-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        teacherStageId = "";
+        teacherDanTargetId = button.dataset.danId;
         renderHome();
       });
     });
@@ -230,6 +266,12 @@ const NindaApp = globalThis.NindaApp = (function () {
   function applyTheme() {
     const save = SaveManager.load();
     document.body.dataset.theme = save && save.settings && save.settings.display === "light" ? "light" : "night";
+    const teacher = !!(save && save.settings && save.settings.teacherMode);
+    document.body.dataset.teacherMode = teacher ? "true" : "false";
+    if (!teacher) {
+      teacherStageId = "";
+      teacherDanTargetId = "";
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);
@@ -240,6 +282,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     showScreen,
     renderHome,
     currentStage,
+    selectedStageId() { return currentStage().id; },
     applyTheme,
     currentScreen() { return currentScreen; }
   };

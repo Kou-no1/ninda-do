@@ -33,13 +33,14 @@ const ExamManager = globalThis.ExamManager = (function () {
 
   function start(stageId) {
     const save = SaveManager.ensure();
-    if (save.dan && save.dan !== "none" && stageId === "kyu1") {
+    const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
+    if (!teacher && save.dan && save.dan !== "none" && stageId === "kyu1") {
       startDanExam();
       return;
     }
     const stage = stageById(stageId);
     if (!stage) return;
-    if (!save.practicedStages.includes(stage.id)) {
+    if (!teacher && !save.practicedStages.includes(stage.id)) {
       alert(UI_TEXT.noPractice);
       return;
     }
@@ -88,9 +89,9 @@ const ExamManager = globalThis.ExamManager = (function () {
     return order[index + 1] || "";
   }
 
-  function startDanExam() {
+  function startDanExam(targetOverride) {
     const save = SaveManager.ensure();
-    const targetId = nextDanId(save.dan);
+    const targetId = targetOverride || nextDanId(save.dan);
     const target = RANK_DATA.dans.find((dan) => dan.id === targetId);
     if (!target || !target.exam) {
       alert("いまの段位は、これ以上の試しがないよ。");
@@ -179,6 +180,7 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function toastNewScrolls(stage, beforeScrolls) {
+    if (SaveManager.isTeacherMode && SaveManager.isTeacherMode()) return;
     if (!globalThis.AchievementManager || !AchievementManager.toastScroll) return;
     const awarded = (stage.jutsu || []).slice();
     if (stage.id === "kyu1") awarded.push("shippu");
@@ -189,7 +191,8 @@ const ExamManager = globalThis.ExamManager = (function () {
 
   function startJissen(menuId) {
     const save = SaveManager.ensure();
-    if (!save.dan || save.dan === "none") {
+    const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
+    if (!teacher && (!save.dan || save.dan === "none")) {
       alert("疾風の術は、下忍から使えるよ。");
       return;
     }

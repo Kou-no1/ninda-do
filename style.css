@@ -151,6 +151,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 .topbar h1, .play-header h1 { margin: 0; font-size: 26px; }
+body[data-teacher-mode="true"] .topbar::after,
+body[data-teacher-mode="true"] .play-header::after {
+  content: "先生モード";
+  border: 2px solid var(--chochin);
+  border-radius: 999px;
+  color: var(--chochin);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: var(--focus-ring-shadow);
+}
 .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: stretch; }
 
 .map-panel {
@@ -213,7 +225,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   box-shadow: var(--current-ring-shadow);
 }
 .map-node.cleared { border-color: rgba(232, 163, 61, 0.62); }
+.map-node.teacher-open {
+  border-color: var(--chochin);
+  border-style: dashed;
+}
 .map-node.dan { cursor: default; transform: translateY(-20px); }
+button.map-node.dan { cursor: pointer; }
 
 .next-panel {
   padding: 18px;
@@ -355,6 +372,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   padding: 18px 12px 12px;
   overflow: hidden;
 }
+.preview-label {
+  position: absolute;
+  top: 16px;
+  right: 14px;
+  z-index: 2;
+  border: 1px solid var(--chochin);
+  border-radius: 999px;
+  color: var(--chochin);
+  background: var(--yoru-deep);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
 .scroll-card:focus-visible {
   outline: 0;
   box-shadow: var(--focus-ring-shadow);
@@ -426,6 +456,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 .nickname-grid { grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)); align-items: start; }
 .nickname-card {
+  position: relative;
   min-height: 238px;
   display: grid;
   justify-items: center;
@@ -513,12 +544,46 @@ button.tanzaku:disabled {
 .passcode-box, .restore-box, .danger-zone { display: grid; gap: 10px; border-top: 2px solid rgba(42, 38, 34, 0.16); padding-top: 14px; }
 .passcode-box output, code { overflow-wrap: anywhere; font-weight: 800; color: var(--sumi); }
 .setting-row { display: flex; gap: 10px; align-items: center; font-weight: 800; }
+.teacher-mode-row {
+  border: 2px solid rgba(232, 163, 61, 0.38);
+  border-radius: 8px;
+  padding: 10px;
+}
 .teacher-menu a { color: var(--ai); font-weight: 800; }
 .version-label {
   margin: 2px 0 0;
   color: rgba(42, 38, 34, 0.42);
   font-size: 12px;
   text-align: right;
+  cursor: pointer;
+  user-select: none;
+}
+.teacher-unlock {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  border-top: 2px solid rgba(42, 38, 34, 0.12);
+  padding-top: 10px;
+}
+.teacher-unlock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.teacher-unlock input {
+  width: 140px;
+  min-height: 42px;
+  border: 2px solid rgba(42, 38, 34, 0.22);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--sumi);
+}
+.teacher-result-note {
+  margin: 8px 0;
+  color: var(--sumi);
+  font-weight: 900;
 }
 textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius: 8px; padding: 10px; font: inherit; background: #fff; color: var(--sumi); }
 .danger-zone button { border-color: var(--shu); color: var(--sumi); background: var(--paper); }
@@ -574,6 +639,15 @@ textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius:
   0%, 100% { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.38)); }
   50% { filter: drop-shadow(0 0 8px rgba(232, 163, 61, 0.84)); }
 }
+
+@keyframes teacherShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+
+.teacher-unlock.shake { animation: teacherShake 180ms ease both; }
 
 @media (max-width: 1024px) {
   .home-grid { grid-template-columns: 1fr; }

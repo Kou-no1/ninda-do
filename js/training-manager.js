@@ -286,8 +286,11 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       const actions = state.config.resultActions === false
         ? ""
         : `<div class="button-row"><button data-result-action="again">もういちど</button><button data-result-action="home">さとにもどる</button></div>`;
+      const teacherNote = SaveManager.isTeacherMode && SaveManager.isTeacherMode()
+        ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
+        : "";
       result.hidden = false;
-      result.innerHTML = resultBody + actions;
+      result.innerHTML = resultBody + teacherNote + actions;
       const again = result.querySelector('[data-result-action="again"]');
       const home = result.querySelector('[data-result-action="home"]');
       if (again) again.addEventListener("click", () => {
