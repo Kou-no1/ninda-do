@@ -36,7 +36,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       keyStats: {},
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {} },
       streak: { last: "", days: 0 },
-      settings: { se: true, voice: true, display: "night", teacherMode: false },
+      settings: { se: true, voice: true, display: "night", teacherMode: false, kanjiDisplay: true },
       eventLog: []
     };
   }
@@ -59,12 +59,16 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function normalize(save) {
     const base = defaultSave(save && save.name, save && save.currentStage);
+    const defaultTotals = Object.assign({}, base.totals);
+    const defaultBest = Object.assign({}, base.best);
+    const defaultSettings = Object.assign({}, base.settings);
+    const defaultStreak = Object.assign({}, base.streak);
     const merged = Object.assign(base, save || {});
-    merged.totals = Object.assign(base.totals, save && save.totals || {});
-    merged.best = Object.assign(base.best, save && save.best || {});
-    merged.best.banzuke = Object.assign({}, base.best.banzuke, save && save.best && save.best.banzuke || {});
-    merged.settings = Object.assign(base.settings, save && save.settings || {});
-    merged.streak = Object.assign(base.streak, save && save.streak || {});
+    merged.totals = Object.assign(defaultTotals, save && save.totals || {});
+    merged.best = Object.assign(defaultBest, save && save.best || {});
+    merged.best.banzuke = Object.assign({}, defaultBest.banzuke, save && save.best && save.best.banzuke || {});
+    merged.settings = Object.assign(defaultSettings, save && save.settings || {});
+    merged.streak = Object.assign(defaultStreak, save && save.streak || {});
     merged.eventLog = Array.isArray(merged.eventLog) ? merged.eventLog.slice(-200) : [];
     merged.practicedStages = Array.isArray(merged.practicedStages) ? merged.practicedStages : [];
     merged.clearedStages = Array.isArray(merged.clearedStages) ? merged.clearedStages : [];

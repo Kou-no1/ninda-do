@@ -196,6 +196,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     mount.innerHTML = `<label class="setting-row"><input type="checkbox" id="seSetting" ${save.settings.se ? "checked" : ""}> 効果音をならす</label>
       <label class="setting-row"><input type="checkbox" id="voiceSetting" ${save.settings.voice ? "checked" : ""}> 入門で読み上げる</label>
       <label class="setting-row"><input type="checkbox" id="displaySetting" ${save.settings.display === "light" ? "checked" : ""}> あかるいひょうじ（プロジェクタ・けいじ用）</label>
+      <label class="setting-row"><input type="checkbox" id="kanjiDisplaySetting" ${save.settings.kanjiDisplay !== false ? "checked" : ""}> ${UI_TEXT.kanjiDisplaySetting}</label>
       ${teacher ? `<label class="setting-row teacher-mode-row"><input type="checkbox" id="teacherModeSetting" checked> 先生モード</label>` : ""}
       <div class="teacher-menu">
         <a href="poster.html" target="_blank" rel="noopener">せんせいメニュー: ゆびのいろポスターをひらく</a>
@@ -219,6 +220,9 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     document.getElementById("displaySetting").addEventListener("change", (event) => {
       SaveManager.setSetting("display", event.target.checked ? "light" : "night");
       if (globalThis.NindaApp) NindaApp.applyTheme();
+    });
+    document.getElementById("kanjiDisplaySetting").addEventListener("change", (event) => {
+      SaveManager.setSetting("kanjiDisplay", event.target.checked);
     });
     if (teacher) {
       document.getElementById("teacherModeSetting").addEventListener("change", (event) => {

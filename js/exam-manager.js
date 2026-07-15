@@ -325,6 +325,7 @@ const ExamManager = globalThis.ExamManager = (function () {
         text: item.kana,
         kind: item.kana && item.kana.length > 12 ? "sentence" : "word",
         display: item.display || "",
+        ruby: Array.isArray(item.ruby) ? item.ruby : [],
         source: item.source || ""
       };
     }).filter((item) => item.text);

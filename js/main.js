@@ -1,4 +1,4 @@
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.6.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -21,7 +21,8 @@ const UI_TEXT = globalThis.UI_TEXT = {
     3: "ぜんぶのガイド"
   },
   lockedPractice: "まず修行を1かいやろう",
-  noBanzukeRecord: "まだ記録なし"
+  noBanzukeRecord: "まだ記録なし",
+  kanjiDisplaySetting: "かんじで ひょうじ（ふりがなつき）"
 };
 
 const NindaApp = globalThis.NindaApp = (function () {

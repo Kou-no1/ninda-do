@@ -272,6 +272,20 @@ button.map-node.dan { cursor: pointer; }
   word-break: break-all;
 }
 .prompt-progress { display: block; width: 100%; text-align: center; }
+.prompt-kana.has-kanji { gap: 8px; padding-top: 16px; }
+.prompt-kanji {
+  display: block;
+  width: 100%;
+  color: rgba(42, 38, 34, 0.85);
+  font-size: var(--kanji-size, 28px);
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: center;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.prompt-kanji ruby { ruby-position: over; white-space: nowrap; }
+.prompt-kanji rt { font-size: 45%; line-height: 1; color: rgba(42, 38, 34, 0.72); }
 .prompt-unit { display: inline; border-radius: 4px; }
 .prompt-unit.done { color: rgba(42, 38, 34, 0.38); }
 .prompt-unit.current {

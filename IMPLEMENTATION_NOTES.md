@@ -437,3 +437,8 @@
 - かな行は単位ごとのspanで描画し、完了済みを薄墨、現在単位を提灯色の下線で示す。高さ制限や `overflow: hidden` は使わず、折り返しで現在文字を常に表示する。
 - ローマ字ガイドは `PROMPT_LAYOUT_CONFIG.romajiWindow` の直近8字＋先20字だけを表示し、省略側へ「…」を付ける。支援技術向けの `aria-label` には全文を保持する。
 - Chrome CDPの `file://` 検証では、実データ最長の64字を1024×768で表示し、26px・3行・`overflow: visible`、現在文字が札内、横スクロールなしを確認した。14打後も可視窓は入力済み8字＋未入力20字で、現在単位は1つ、Runtime例外0、外部HTTP(S)リクエスト0だった。
+- `save.settings.kanjiDisplay` は既定ONとし、旧セーブでは未定義をONとして正規化する。既存の `normalize()` は入れ子の既定値を退避する前に旧データで上書きしていたため、totals / best / settings / streak の既定値を先に複製してからマージするよう修正した。設定文言は `UI_TEXT.kanjiDisplaySetting` に集約した。
+- `display` があり漢字表示ONの項目だけ、お題札内へ漢字行を生成する。`ruby` は各要素の形と第1成分の連結を実行時にも確認し、不正なら安全にエスケープした `display` へフォールバックする。打鍵対象と進捗は従来どおり `kana` のみ。
+- 出典欄は `source` だけを表示し、DOM順を「お題札（漢字行＋かな行）／ローマ字窓／出典」に変更した。漢字表示OFFでは漢字行のDOMを生成しない。
+- `APP_VERSION` を `1.6.0` に更新し、READMEのバージョン対応表へPATCH-07行を追加した。
+- Chrome CDPで、ルビ付き表示4箇所、`rt` 比率45%、漢字行の墨色85%、DOM順「promptKana / romajiGuide / promptFurigana」を確認した。設定OFFでは漢字行DOMがなく、リロード後もOFFとチェック状態が保持される。心眼では漢字行と出典を残したままローマ字だけが空になり、旧セーブの未定義 `kanjiDisplay` はONへ補完された。

@@ -3,10 +3,10 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   const PROMPT_LAYOUT_CONFIG = {
     sizes: [
-      { maxLength: 12, value: "clamp(48px, 6vw, 72px)" },
-      { maxLength: 24, value: "36px" },
-      { maxLength: 44, value: "30px" },
-      { maxLength: Infinity, value: "26px" }
+      { maxLength: 12, value: "clamp(48px, 6vw, 72px)", kanji: "42px" },
+      { maxLength: 24, value: "36px", kanji: "28px" },
+      { maxLength: 44, value: "30px", kanji: "24px" },
+      { maxLength: Infinity, value: "26px", kanji: "22px" }
     ],
     spacedMaxLength: 12,
     romajiWindow: { typed: 8, rest: 20 }
@@ -75,6 +75,12 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     return step ? step.value : PROMPT_LAYOUT_CONFIG.sizes[PROMPT_LAYOUT_CONFIG.sizes.length - 1].value;
   }
 
+  function kanjiSize(text) {
+    const length = Array.from(String(text || "")).length;
+    const step = PROMPT_LAYOUT_CONFIG.sizes.find((item) => length <= item.maxLength);
+    return step ? step.kanji : PROMPT_LAYOUT_CONFIG.sizes[PROMPT_LAYOUT_CONFIG.sizes.length - 1].kanji;
+  }
+
   function promptProgressHtml(text, kind, progress) {
     const source = String(text || "");
     let units;
@@ -106,6 +112,19 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       clippedRest: rest.length > restLimit,
       full: typed + rest
     };
+  }
+
+  function displayHtml(display, ruby) {
+    const label = String(display || "");
+    if (!Array.isArray(ruby) || !ruby.length) return escapeHtml(label);
+    const valid = ruby.every((part) => Array.isArray(part) && (part.length === 1 || part.length === 2)
+      && typeof part[0] === "string" && part[0].length > 0
+      && (part.length === 1 || typeof part[1] === "string" && part[1].length > 0));
+    const joined = valid ? ruby.map((part) => part[0]).join("") : "";
+    if (!valid || joined !== label) return escapeHtml(label);
+    return ruby.map((part) => part.length === 2
+      ? `<ruby>${escapeHtml(part[0])}<rt>${escapeHtml(part[1])}</rt></ruby>`
+      : escapeHtml(part[0])).join("");
   }
 
   function ensureKeyListener() {
@@ -168,7 +187,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       comboDisplay: 0,
       comboFading: false,
       comboFadeTimer: null,
-      lastComboMilestone: 0
+      lastComboMilestone: 0,
+      kanjiDisplay: SaveManager.ensure().settings.kanjiDisplay !== false
     };
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     const playScreen = document.getElementById(config.screen);
@@ -283,13 +303,15 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
     if (phase && active.config.phase) phase.textContent = active.config.phase;
     if (prompt) {
+      const showKanji = active.kanjiDisplay && !!item.display;
       prompt.style.setProperty("--prompt-size", promptSize(item.text));
+      prompt.style.setProperty("--kanji-size", kanjiSize(item.text));
       prompt.dataset.promptLength = String(Array.from(String(item.text || "")).length);
-      prompt.innerHTML = promptProgressHtml(item.text, item.kind, active.session.progress());
+      prompt.classList.toggle("has-kanji", showKanji);
+      prompt.innerHTML = `${showKanji ? `<span class="prompt-kanji">${displayHtml(item.display, item.ruby)}</span>` : ""}${promptProgressHtml(item.text, item.kind, active.session.progress())}`;
     }
     if (furigana) {
-      const itemNote = [item.display, item.source].filter(Boolean).join(" ／ ");
-      furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : itemNote;
+      furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : (item.source || "");
     }
     if (romaji) {
       if (active.guideLevel >= 1 || active.rescue) {
@@ -670,8 +692,10 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     refByName,
     formatPrompt,
     promptSize,
+    kanjiSize,
     promptProgressHtml,
     romajiWindow,
+    displayHtml,
     openModal,
     closeModal
   };
