@@ -1,6 +1,17 @@
 const TrainingManager = globalThis.TrainingManager = (function () {
   "use strict";
 
+  const PROMPT_LAYOUT_CONFIG = {
+    sizes: [
+      { maxLength: 12, value: "clamp(48px, 6vw, 72px)" },
+      { maxLength: 24, value: "36px" },
+      { maxLength: 44, value: "30px" },
+      { maxLength: Infinity, value: "26px" }
+    ],
+    spacedMaxLength: 12,
+    romajiWindow: { typed: 8, rest: 20 }
+  };
+
   let active = null;
   let keyListenerReady = false;
   let modalKeyListenerReady = false;
@@ -56,6 +67,45 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     } catch (error) {
       return text;
     }
+  }
+
+  function promptSize(text) {
+    const length = Array.from(String(text || "")).length;
+    const step = PROMPT_LAYOUT_CONFIG.sizes.find((item) => length <= item.maxLength);
+    return step ? step.value : PROMPT_LAYOUT_CONFIG.sizes[PROMPT_LAYOUT_CONFIG.sizes.length - 1].value;
+  }
+
+  function promptProgressHtml(text, kind, progress) {
+    const source = String(text || "");
+    let units;
+    try {
+      units = InputEngine.segment(source).map((unit) => unit.kana);
+    } catch (error) {
+      units = Array.from(source);
+    }
+    const currentIndex = progress && Number.isFinite(progress.unitIndex) ? progress.unitIndex : 0;
+    const addSpaces = source.length <= PROMPT_LAYOUT_CONFIG.spacedMaxLength && !/^[a-z.,-]+$/.test(source);
+    const html = units.map((unit, index) => {
+      const label = kind === "letter" ? unit.toUpperCase() : unit;
+      const state = index < currentIndex ? " done" : index === currentIndex ? " current" : "";
+      const separator = addSpaces && index < units.length - 1 ? '<span class="prompt-separator" aria-hidden="true"> </span>' : "";
+      return `<span class="prompt-unit${state}">${escapeHtml(label)}</span>${separator}`;
+    }).join("");
+    return `<span class="prompt-progress">${html}</span>`;
+  }
+
+  function romajiWindow(display) {
+    const typed = String(display && display.typed || "");
+    const rest = String(display && display.rest || "");
+    const typedLimit = PROMPT_LAYOUT_CONFIG.romajiWindow.typed;
+    const restLimit = PROMPT_LAYOUT_CONFIG.romajiWindow.rest;
+    return {
+      typed: typed.slice(-typedLimit),
+      rest: rest.slice(0, restLimit),
+      clippedTyped: typed.length > typedLimit,
+      clippedRest: rest.length > restLimit,
+      full: typed + rest
+    };
   }
 
   function ensureKeyListener() {
@@ -232,7 +282,11 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     const phase = byId(ids.phase);
 
     if (phase && active.config.phase) phase.textContent = active.config.phase;
-    if (prompt) prompt.textContent = formatPrompt(item.text, item.kind);
+    if (prompt) {
+      prompt.style.setProperty("--prompt-size", promptSize(item.text));
+      prompt.dataset.promptLength = String(Array.from(String(item.text || "")).length);
+      prompt.innerHTML = promptProgressHtml(item.text, item.kind, active.session.progress());
+    }
     if (furigana) {
       const itemNote = [item.display, item.source].filter(Boolean).join(" ／ ");
       furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : itemNote;
@@ -240,9 +294,12 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (romaji) {
       if (active.guideLevel >= 1 || active.rescue) {
         const display = active.session.displayRomaji();
-        romaji.innerHTML = `<span class="typed">${escapeHtml(display.typed)}</span><span class="rest">${escapeHtml(display.rest)}</span>`;
+        const windowed = romajiWindow(display);
+        romaji.setAttribute("aria-label", windowed.full);
+        romaji.innerHTML = `${windowed.clippedTyped ? '<span class="romaji-ellipsis" aria-hidden="true">…</span>' : ""}<span class="typed">${escapeHtml(windowed.typed)}</span><span class="rest">${escapeHtml(windowed.rest)}</span>${windowed.clippedRest ? '<span class="romaji-ellipsis" aria-hidden="true">…</span>' : ""}`;
       } else {
         romaji.innerHTML = "";
+        romaji.removeAttribute("aria-label");
       }
     }
     GuideRenderer.render(guide, {
@@ -612,6 +669,9 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     stageById,
     refByName,
     formatPrompt,
+    promptSize,
+    promptProgressHtml,
+    romajiWindow,
     openModal,
     closeModal
   };
