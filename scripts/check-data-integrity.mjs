@@ -228,9 +228,11 @@ for (const item of NICKNAME_DATA) {
 ok(nicknameIds.size === NICKNAME_DATA.length, "NG [nickname] id が重複しています");
 
 for (const menu of RANK_DATA.jissenMenu) {
+  ok(typeof menu.desc === "string" && menu.desc.trim().length > 0, `NG [jissenMenu:${menu.id}] desc がありません`);
   if (menu.source) ok(context[menu.source], `NG [jissenMenu:${menu.id}] source ${menu.source} が存在しません`);
 }
 for (const course of RANK_DATA.banzuke.courses) {
+  ok(typeof course.desc === "string" && course.desc.trim().length > 0, `NG [banzuke:${course.id}] desc がありません`);
   ok(context[course.wordsRef], `NG [banzuke:${course.id}] wordsRef ${course.wordsRef} が存在しません`);
   ok(RANK_DATA.banzuke.tiers[course.id], `NG [banzuke:${course.id}] tierしきい値がありません`);
 }
@@ -256,6 +258,7 @@ let previousKpm = 0;
 let previousAccuracy = 0;
 for (const dan of RANK_DATA.dans) {
   if (!dan.exam) continue;
+  ok(typeof dan.exam.desc === "string" && dan.exam.desc.trim().length > 0, `NG [dan:${dan.id}] exam.desc がありません`);
   ok(dan.exam.jissen.kpm >= previousKpm, `NG [dan:${dan.id}] kpm が単調非減少ではありません`);
   ok(dan.exam.jissen.accuracy >= previousAccuracy, `NG [dan:${dan.id}] accuracy が単調非減少ではありません`);
   previousKpm = dan.exam.jissen.kpm;

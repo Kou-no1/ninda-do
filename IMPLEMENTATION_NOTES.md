@@ -416,3 +416,8 @@
 - `node --check` 全JS/MJSと `node scripts/check-data-integrity.mjs` はOK。
 - 通常Chrome CDPで `file://` 起動し、`APP_VERSION === "1.4.1"`、外部HTTP(S)リソース0、Runtime例外0を確認。
 - CDPで先生モードの「影の道」を1ラン回し、追加名文 `はるはあけぼの。...` が出題され、お題札下に `春はあけぼの。... ／ 清少納言『枕草子』` が表示されること、結果モーダルまで到達することを確認。
+
+## PATCH-06
+
+- `RANK_DATA.jissenMenu`、`RANK_DATA.banzuke.courses`、昇段試験定義に説明文 `desc` を追加した。表示文は data 側で変更できるようにし、UI はこの値を読むだけにする。
+- `scripts/check-data-integrity.mjs` に、実戦メニュー・番付コース・昇段試験の `desc` 必須検査を追加した。
