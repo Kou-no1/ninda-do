@@ -1,4 +1,4 @@
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.5.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -6,7 +6,22 @@ const UI_TEXT = globalThis.UI_TEXT = {
   catch: "型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。——それが、忍打道。",
   fail: "まだ機（き）は熟していない。もういちど修行だ！",
   noPractice: "まずは一回、しゅぎょうしてからいどもう。",
-  keyboardOnly: "このアプリはキーボードをつないであそんでね"
+  keyboardOnly: "このアプリはキーボードをつないであそんでね",
+  trainingDesc: {
+    in: "あたらしいキーを、ゆびにおぼえさせる。",
+    word: "ならったかなで、ことばをうつ。",
+    sentence: "みじかい文で、心眼にそなえる。",
+    letter: "もじのばしょを、ひとつずつおぼえる。"
+  },
+  examDesc: "ごうかくすれば、つぎへすすめる。",
+  guideLevel: {
+    0: "ガイドなし",
+    1: "ローマ字だけ",
+    2: "ローマ字とキーボード",
+    3: "ぜんぶのガイド"
+  },
+  lockedPractice: "まず修行を1かいやろう",
+  noBanzukeRecord: "まだ記録なし"
 };
 
 const NindaApp = globalThis.NindaApp = (function () {
@@ -16,6 +31,8 @@ const NindaApp = globalThis.NindaApp = (function () {
   let currentScreen = "S0";
   let teacherStageId = "";
   let teacherDanTargetId = "";
+  let menuState = null;
+  let menuKeyListenerReady = false;
 
   function byId(id) {
     return document.getElementById(id);
@@ -49,21 +66,19 @@ const NindaApp = globalThis.NindaApp = (function () {
     });
     byId("trainingButton").addEventListener("click", () => {
       if (SaveManager.isTeacherMode() && teacherDanTargetId) {
-        if (ExamManager.startJissen) ExamManager.startJissen("word-jissen");
+        openJissenMenu();
         return;
       }
-      TrainingManager.start(currentStage().id);
+      openStageMenu(currentStage().id);
     });
     byId("examButton").addEventListener("click", () => {
       if (SaveManager.isTeacherMode() && teacherDanTargetId) {
-        ExamManager.startDanExam(teacherDanTargetId === "genin" ? "chunin" : teacherDanTargetId);
+        openJissenMenu();
         return;
       }
-      ExamManager.start(currentStage().id);
+      openStageMenu(currentStage().id);
     });
-    byId("jissenButton").addEventListener("click", () => {
-      if (ExamManager.startJissen) ExamManager.startJissen("word-jissen");
-    });
+    byId("jissenButton").addEventListener("click", openJissenMenu);
   }
 
   function wireEntry() {
@@ -143,6 +158,8 @@ const NindaApp = globalThis.NindaApp = (function () {
       if (event.key !== "Escape") return;
       const resultOverlay = byId("resultOverlay");
       if (resultOverlay && !resultOverlay.hidden) return;
+      const menuOverlay = byId("menuOverlay");
+      if (menuOverlay && !menuOverlay.hidden) return;
       if ((currentScreen === "S2" || currentScreen === "S3") && TrainingManager.isActive()) {
         event.preventDefault();
         if (confirm("修行をやめて、さとにもどる？")) TrainingManager.stop(true);
@@ -185,29 +202,276 @@ const NindaApp = globalThis.NindaApp = (function () {
       : stage.id === "kyu1" && save.dan !== "none"
       ? "実戦の修行で、疾風の術をみがこう。"
       : `次は ${stage.label}「${stage.title}」`;
-    byId("trainingButton").textContent = teacherDan ? "実戦をみる" : "しゅぎょうする";
-    byId("examButton").textContent = teacherDan ? "三の試しにいどむ" : "ためしにいどむ";
-    byId("examButton").disabled = !teacher && !save.practicedStages.includes(stage.id);
-    byId("examButton").title = byId("examButton").disabled ? UI_TEXT.noPractice : "";
+    byId("trainingButton").textContent = teacherDan ? "実戦の間へ" : "修行をえらぶ";
+    byId("examButton").textContent = teacherDan ? "三の試しをえらぶ" : "試しもえらぶ";
+    byId("examButton").disabled = false;
+    byId("examButton").title = "";
     byId("jissenButton").hidden = !teacher && save.dan === "none";
-    renderJissenMenu(save);
+    byId("jissenButton").textContent = "実戦の間へ";
     renderMap(save, teacherDan ? "" : stage.id);
   }
 
-  function renderJissenMenu(save) {
-    const mount = byId("jissenMenuMount");
+  function openStageMenu(stageId) {
+    const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode();
-    if (!mount) return;
-    if (!teacher && (!save.dan || save.dan === "none")) {
-      mount.hidden = true;
-      mount.innerHTML = "";
-      return;
-    }
-    mount.hidden = false;
-    mount.innerHTML = RANK_DATA.jissenMenu.map((menu) => `<button data-jissen-menu="${menu.id}">${menu.label}</button>`).join("");
-    mount.querySelectorAll("[data-jissen-menu]").forEach((button) => {
-      button.addEventListener("click", () => ExamManager.startJissen(button.dataset.jissenMenu));
+    const stage = CURRICULUM_DATA.stages.find((item) => item.id === stageId) || currentStage();
+    const cards = (stage.training || []).map((entry, index) => ({
+      id: `training-${index}`,
+      name: entry.label,
+      desc: entry.desc || UI_TEXT.trainingDesc[stage.type === "nyumon" ? "letter" : entry.kind] || "",
+      meta: trainingMeta(stage, entry),
+      run() {
+        closeMenuModal(false);
+        TrainingManager.start(stage.id, index);
+      }
+    }));
+    const examLocked = !teacher && !save.practicedStages.includes(stage.id);
+    cards.push({
+      id: "exam",
+      name: "試しにいどむ",
+      desc: UI_TEXT.examDesc,
+      meta: examLocked ? UI_TEXT.lockedPractice : stageExamMeta(stage),
+      locked: examLocked,
+      run() {
+        closeMenuModal(false);
+        ExamManager.start(stage.id);
+      }
     });
+    openMenuModal({
+      title: `${stage.label} ${stage.title}`,
+      cards,
+      teacherBadge: teacher
+    });
+  }
+
+  function openJissenMenu() {
+    const save = SaveManager.ensure();
+    const teacher = SaveManager.isTeacherMode();
+    if (!teacher && (!save.dan || save.dan === "none")) return;
+    const cards = RANK_DATA.jissenMenu.map((menu) => ({
+      id: menu.id,
+      name: menu.label,
+      desc: menu.desc,
+      meta: jissenMeta(menu),
+      run() {
+        if (menu.kind === "banzuke") {
+          openBanzukeCourseMenu();
+          return;
+        }
+        closeMenuModal(false);
+        ExamManager.startJissen(menu.id);
+      }
+    }));
+    const targetDan = nextDanTarget(save);
+    if (targetDan && targetDan.exam) {
+      cards.push({
+        id: "dan-exam",
+        name: "三の試し",
+        desc: targetDan.exam.desc,
+        meta: danExamMeta(targetDan.exam),
+        run() {
+          closeMenuModal(false);
+          ExamManager.startDanExam(targetDan.id);
+        }
+      });
+    }
+    openMenuModal({ title: "実戦の間", cards, teacherBadge: teacher });
+  }
+
+  function openBanzukeCourseMenu() {
+    const save = SaveManager.ensure();
+    const teacher = SaveManager.isTeacherMode();
+    const bestByCourse = save.best && save.best.banzuke ? save.best.banzuke : {};
+    const cards = RANK_DATA.banzuke.courses.map((course) => {
+      const unlocked = teacher || danIndex(save.dan) >= danIndex(course.dan);
+      const best = bestByCourse[course.id];
+      return {
+        id: course.id,
+        name: course.label,
+        desc: course.desc,
+        meta: unlocked
+          ? best ? `じこベスト ${best.score} ／ ${best.tier}` : UI_TEXT.noBanzukeRecord
+          : `${danLabel(course.dan)}に昇段するとひらく`,
+        locked: !unlocked,
+        badgeHtml: best ? tierBadgeHtml(best.tier) : "",
+        run() {
+          closeMenuModal(false);
+          ExamManager.startBanzukeCourse(course.id);
+        }
+      };
+    });
+    openMenuModal({
+      title: "疾風番付 ── 道をえらぶ",
+      cards,
+      teacherBadge: teacher,
+      back: { label: "もどる", run: openJissenMenu }
+    });
+  }
+
+  function openMenuModal(options) {
+    const overlay = byId("menuOverlay");
+    const mount = byId("menuModalMount");
+    if (!overlay || !mount) return;
+    const previousFocus = menuState ? menuState.previousFocus : document.activeElement;
+    const actionMap = {};
+    const cardsHtml = options.cards.map((card) => {
+      actionMap[card.id] = card.locked ? null : card.run;
+      return `<button type="button" class="menu-card ${card.locked ? "locked" : ""}" data-menu-card="${escapeHtml(card.id)}" aria-disabled="${card.locked ? "true" : "false"}">
+        <span class="menu-card-main">
+          <strong class="menu-card-title">${card.locked ? `${lockIcon()}<span class="visually-hidden">ロック中</span>` : ""}${escapeHtml(card.name)}</strong>
+          <span class="menu-card-desc">${escapeHtml(card.desc || "")}</span>
+          <span class="menu-card-meta">${escapeHtml(card.meta || "")}</span>
+        </span>
+        ${card.badgeHtml ? `<span class="menu-card-badge">${card.badgeHtml}</span>` : ""}
+      </button>`;
+    }).join("");
+    mount.innerHTML = `<div class="menu-modal-head">
+        <h2 id="menuModalTitle">${escapeHtml(options.title)}</h2>
+        <div class="menu-modal-tools">
+          ${options.teacherBadge ? '<span class="teacher-badge">先生モード</span>' : ""}
+          ${options.back ? `<button type="button" class="menu-back" data-menu-back>${escapeHtml(options.back.label)}</button>` : ""}
+        </div>
+      </div>
+      <div class="menu-card-list">${cardsHtml}</div>`;
+    menuState = { overlay, mount, previousFocus, actionMap, back: options.back || null };
+    overlay.hidden = false;
+    overlay.onclick = (event) => {
+      if (event.target === overlay) closeMenuModal(true);
+    };
+    mount.querySelectorAll("[data-menu-card]").forEach((button) => {
+      button.addEventListener("click", () => runMenuAction(button.dataset.menuCard));
+    });
+    const backButton = mount.querySelector("[data-menu-back]");
+    if (backButton) backButton.addEventListener("click", () => options.back.run());
+    wireMenuKeyboard();
+    const firstCard = mount.querySelector("[data-menu-card]");
+    if (firstCard) window.setTimeout(() => firstCard.focus(), 0);
+  }
+
+  function closeMenuModal(restoreFocus) {
+    if (!menuState) return;
+    const previousFocus = menuState.previousFocus;
+    menuState.overlay.hidden = true;
+    menuState.mount.innerHTML = "";
+    menuState = null;
+    if (restoreFocus !== false && previousFocus && previousFocus.focus) previousFocus.focus();
+  }
+
+  function runMenuAction(id) {
+    if (!menuState) return;
+    const action = menuState.actionMap[id];
+    if (action) action();
+  }
+
+  function wireMenuKeyboard() {
+    if (menuKeyListenerReady) return;
+    menuKeyListenerReady = true;
+    document.addEventListener("keydown", (event) => {
+      if (!menuState || menuState.overlay.hidden) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeMenuModal(true);
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        moveMenuFocus(event.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      if (event.key === "Enter" && document.activeElement && document.activeElement.matches("[data-menu-card]")) {
+        event.preventDefault();
+        runMenuAction(document.activeElement.dataset.menuCard);
+        return;
+      }
+      if (event.key === "Tab") trapMenuFocus(event);
+    }, true);
+  }
+
+  function moveMenuFocus(direction) {
+    if (!menuState) return;
+    const cards = Array.from(menuState.mount.querySelectorAll("[data-menu-card]"));
+    if (!cards.length) return;
+    const currentIndex = cards.indexOf(document.activeElement);
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + direction + cards.length) % cards.length;
+    cards[nextIndex].focus();
+  }
+
+  function trapMenuFocus(event) {
+    if (!menuState) return;
+    const focusable = Array.from(menuState.mount.querySelectorAll("button:not([disabled])"));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function trainingMeta(stage, entry) {
+    const unit = entry.kind === "sentence" ? "文" : entry.kind === "word" ? "語" : "こ";
+    const level = stage.type === "nyumon" ? 3 : stage.guideLevelTraining;
+    return `${entry.count}${unit} ／ ${guideLabel(level)}`;
+  }
+
+  function stageExamMeta(stage) {
+    return `せいかくりつ ${Math.round(stage.exam.accuracy * 100)}％いじょう ／ ${guideLabel(stage.guideLevelExam)}`;
+  }
+
+  function guideLabel(level) {
+    return UI_TEXT.guideLevel[level] || UI_TEXT.guideLevel[0];
+  }
+
+  function jissenMeta(menu) {
+    if (menu.kind === "banzuke") return `${RANK_DATA.banzuke.seconds}びょう ／ ${RANK_DATA.banzuke.courses.length}つの道`;
+    if (menu.seconds) return `${menu.seconds}びょう`;
+    if (menu.items) return `${menu.items}語`;
+    return "";
+  }
+
+  function danExamMeta(exam) {
+    return `正確率${Math.round(exam.kata.accuracy * 100)}％ ／ ${exam.jissen.kpm}打/分`;
+  }
+
+  function nextDanTarget(save) {
+    if (SaveManager.isTeacherMode() && teacherDanTargetId) {
+      const targetId = teacherDanTargetId === "genin" ? "chunin" : teacherDanTargetId;
+      return RANK_DATA.dans.find((item) => item.id === targetId && item.exam);
+    }
+    const currentIndex = Math.max(1, SaveManager.DAN_ORDER.indexOf(save.dan || "genin"));
+    const nextId = SaveManager.DAN_ORDER[currentIndex + 1];
+    return RANK_DATA.dans.find((item) => item.id === nextId && item.exam);
+  }
+
+  function danIndex(id) {
+    return Math.max(0, SaveManager.DAN_ORDER.indexOf(id || "none"));
+  }
+
+  function danLabel(id) {
+    const dan = RANK_DATA.dans.find((item) => item.id === id);
+    return dan ? dan.label : id;
+  }
+
+  function tierBadgeHtml(tier) {
+    return `<span class="menu-tier ${tierClass(tier)}" title="${escapeHtml(tier)}"><span class="tier-badge">${SVG_ICONS.tierBadge()}</span><span>${escapeHtml(tier)}</span></span>`;
+  }
+
+  function tierClass(tier) {
+    return { 銅: "tier-copper", 銀: "tier-silver", 金: "tier-gold", 白金: "tier-platinum", 月光: "tier-gekko" }[tier] || "tier-none";
+  }
+
+  function lockIcon() {
+    return `<svg class="menu-lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="5" y="10" width="14" height="10" rx="2"/></svg>`;
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[char]));
   }
 
   function renderMap(save, currentStageId) {
@@ -231,7 +495,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       const reached = SaveManager.DAN_ORDER.indexOf(save.dan) >= SaveManager.DAN_ORDER.indexOf(dan.id);
       const className = `map-node dan ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""}`;
       const content = `<span class="node-icon">${active ? SVG_ICONS.lantern() : SVG_ICONS.torii()}</span><span><b>${dan.label}</b><small>実戦</small></span>`;
-      return teacher
+      return teacher || reached
         ? `<button type="button" class="${className}" data-dan-id="${dan.id}">${content}</button>`
         : `<div class="${className}">${content}</div>`;
     }).join("");
@@ -245,13 +509,21 @@ const NindaApp = globalThis.NindaApp = (function () {
           SaveManager.update((saveData) => { saveData.currentStage = button.dataset.stageId; });
         }
         renderHome();
+        const returnButton = map.querySelector(`[data-stage-id="${button.dataset.stageId}"]`);
+        if (returnButton) returnButton.focus();
+        openStageMenu(button.dataset.stageId);
       });
     });
     map.querySelectorAll("[data-dan-id]").forEach((button) => {
       button.addEventListener("click", () => {
-        teacherStageId = "";
-        teacherDanTargetId = button.dataset.danId;
-        renderHome();
+        if (SaveManager.isTeacherMode()) {
+          teacherStageId = "";
+          teacherDanTargetId = button.dataset.danId;
+          renderHome();
+          const returnButton = map.querySelector(`[data-dan-id="${button.dataset.danId}"]`);
+          if (returnButton) returnButton.focus();
+        }
+        openJissenMenu();
       });
     });
   }
@@ -285,6 +557,10 @@ const NindaApp = globalThis.NindaApp = (function () {
     renderHome,
     currentStage,
     selectedStageId() { return currentStage().id; },
+    openStageMenu,
+    openJissenMenu,
+    openBanzukeCourseMenu,
+    closeMenuModal,
     applyTheme,
     currentScreen() { return currentScreen; }
   };

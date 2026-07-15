@@ -198,7 +198,8 @@ const ExamManager = globalThis.ExamManager = (function () {
     }
     const menu = RANK_DATA.jissenMenu.find((item) => item.id === menuId) || RANK_DATA.jissenMenu[0];
     if (menu.kind === "banzuke") {
-      showBanzukeCourses(save);
+      if (globalThis.NindaApp && NindaApp.openBanzukeCourseMenu) NindaApp.openBanzukeCourseMenu();
+      else showBanzukeCourses(save);
       return;
     }
     const items = buildJissenItems(menu, save);
@@ -289,7 +290,11 @@ const ExamManager = globalThis.ExamManager = (function () {
         id: "courses",
         label: "コースをえらぶ",
         run() {
-          showBanzukeCourses(SaveManager.ensure());
+          if (globalThis.NindaApp && NindaApp.openBanzukeCourseMenu) {
+            TrainingManager.closeModal(false);
+            NindaApp.openBanzukeCourseMenu();
+          }
+          else showBanzukeCourses(SaveManager.ensure());
         }
       },
       onComplete(summary, state) {
@@ -352,6 +357,7 @@ const ExamManager = globalThis.ExamManager = (function () {
     start,
     startDanExam,
     startJissen,
+    startBanzukeCourse,
     buildJissenItems,
     buildBanzukeItems,
     banzukeScore,

@@ -31,15 +31,17 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     return result;
   }
 
-  function buildTrainingItems(stage) {
+  function buildTrainingItems(stage, menuIndex) {
     const ref = refByName(stage.wordsRef);
+    const selectedMenu = Number.isInteger(menuIndex) ? stage.training[menuIndex] : null;
     if (stage.type === "nyumon") {
       const keys = NYUMON_WORDS.sections[stage.id] || [];
-      const count = stage.training[0].count;
+      const count = (selectedMenu || stage.training[0]).count;
       return sample(keys, count).map((key) => ({ text: key, kind: "letter" }));
     }
     const items = [];
-    for (const menu of stage.training) {
+    const menus = selectedMenu ? [selectedMenu] : stage.training;
+    for (const menu of menus) {
       const source = menu.kind === "in" ? ref.in : menu.kind === "sentence" ? ref.sentences : ref.words;
       sample(source, menu.count).forEach((text) => items.push({ text, kind: menu.kind }));
     }
@@ -71,15 +73,16 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     });
   }
 
-  function start(stageId) {
+  function start(stageId, menuIndex) {
     const stage = stageById(stageId);
     if (!stage) return;
-    const items = buildTrainingItems(stage);
+    const menu = Number.isInteger(menuIndex) ? stage.training[menuIndex] : null;
+    const items = buildTrainingItems(stage, menuIndex);
     if (globalThis.NindaApp) NindaApp.showScreen("S2");
     startRunner({
       screen: "S2",
       stageId: stage.id,
-      title: `${stage.label}「${stage.title}」`,
+      title: `${stage.label}「${stage.title}」${menu ? ` ${menu.label}` : ""}`,
       items,
       guideLevel: stage.type === "nyumon" ? 3 : stage.guideLevelTraining,
       mode: "training",
