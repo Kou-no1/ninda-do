@@ -1,25 +1,25 @@
 const RANK_DATA = globalThis.RANK_DATA = {
   dans: [
-    { id: "genin", label: "下忍", mapAccent: "none", grantedBy: "kyu1" },
-    { id: "chunin", label: "中忍", mapAccent: "ai", exam: {
+    { id: "genin", label: "下忍", flavor: "型をおえた者", mapAccent: "none", grantedBy: "kyu1" },
+    { id: "chunin", label: "中忍", flavor: "里をささえる者", mapAccent: "ai", exam: {
         desc: "昇段のしけん。型・実戦・心眼の三本。",
         kata: { items: 15, accuracy: 0.96, guideLevel: 1 },
         jissen: { seconds: 60, kpm: 60, accuracy: 0.94, guideLevel: 1 },
         shingan: { items: 3, accuracy: 0.96, guideLevel: 0 }
     } },
-    { id: "jonin", label: "上忍", mapAccent: "kin", exam: {
+    { id: "jonin", label: "上忍", flavor: "里をひきいる者", mapAccent: "kin", exam: {
         desc: "昇段のしけん。型・実戦・心眼の三本。",
         kata: { items: 20, accuracy: 0.97, guideLevel: 1 },
         jissen: { seconds: 90, kpm: 90, accuracy: 0.95, guideLevel: 1 },
         shingan: { items: 4, accuracy: 0.97, guideLevel: 0 }
     } },
-    { id: "tokujonin", label: "特上忍", mapAccent: "hakkin", secret: true, exam: {
+    { id: "tokujonin", label: "特上忍", flavor: "影にもっとも近き者", mapAccent: "hakkin", secret: true, exam: {
         desc: "昇段のしけん。型・実戦・心眼の三本。",
         kata: { items: 20, accuracy: 0.97, guideLevel: 1 },
         jissen: { seconds: 90, kpm: 120, accuracy: 0.96, guideLevel: 1 },
         shingan: { items: 5, accuracy: 0.97, guideLevel: 0 }
     } },
-    { id: "kage", label: "影", mapAccent: "gekko", secret: true, exam: {
+    { id: "kage", label: "影", flavor: "里でただ一人の頂（いただき）", mapAccent: "gekko", secret: true, exam: {
         desc: "昇段のしけん。型・実戦・心眼の三本。",
         kata: { items: 25, accuracy: 0.98, guideLevel: 1 },
         jissen: { seconds: 120, kpm: 150, accuracy: 0.97, guideLevel: 1 },

@@ -279,8 +279,13 @@ const danOrder = RANK_DATA.dans.map((dan) => dan.id);
 const secretDanIds = RANK_DATA.dans.filter((dan) => dan.secret === true).map((dan) => dan.id);
 for (const dan of RANK_DATA.dans) {
   ok(typeof dan.mapAccent === "string" && dan.mapAccent.trim().length > 0, `NG [dan:${dan.id}] mapAccent がありません`);
+  ok(typeof dan.flavor === "string" && dan.flavor.trim().length > 0, `NG [dan:${dan.id}] flavor がありません`);
   if (dan.secret === true) {
     ok(danOrder.indexOf(dan.id) > 0, `NG [dan:${dan.id}] 先頭段位をsecretにはできません`);
+  }
+  if (["jonin", "tokujonin", "kage"].includes(dan.id)) {
+    ok(Number.isFinite(dan.exam && dan.exam.jissen && dan.exam.jissen.kpm), `NG [dan:${dan.id}] exam.jissen.kpm がありません`);
+    ok(Number.isFinite(dan.exam && dan.exam.jissen && dan.exam.jissen.accuracy), `NG [dan:${dan.id}] exam.jissen.accuracy がありません`);
   }
   if (!dan.exam) continue;
   ok(typeof dan.exam.desc === "string" && dan.exam.desc.trim().length > 0, `NG [dan:${dan.id}] exam.desc がありません`);
