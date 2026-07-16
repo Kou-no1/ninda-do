@@ -219,6 +219,8 @@ body[data-teacher-mode="true"] .play-header::after {
   border-top: 3px dashed rgba(236, 231, 216, 0.42);
 }
 .map-node {
+  position: relative;
+  overflow: hidden;
   min-height: 108px;
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -242,6 +244,77 @@ body[data-teacher-mode="true"] .play-header::after {
 }
 .map-node.dan { cursor: default; }
 button.map-node.dan { cursor: pointer; }
+.map-node.dan-lower {
+  min-height: 120px;
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+.map-node.dan-upper {
+  min-height: 132px;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  padding-right: 28px;
+}
+.map-node.dan-lower .node-icon svg { width: 56px; height: 56px; }
+.map-node.dan-upper .node-icon svg { width: 64px; height: 64px; }
+.map-node.dan-upper b { font-size: 28px; }
+.dan-copy { min-width: 0; }
+.dan-route {
+  margin: 0 22px 0 12px;
+  color: rgba(236, 231, 216, 0.72);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.map-node.dan[data-accent]:not([data-accent="none"])::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--rank-accent);
+}
+.map-node.dan[data-accent="ai"] { --rank-accent: var(--ai); border-color: var(--ai); }
+.map-node.dan[data-accent="kin"] {
+  --rank-accent: var(--kin);
+  border-color: var(--kin);
+  background: rgba(217, 180, 92, 0.12);
+}
+.map-node.dan[data-accent="hakkin"] {
+  --rank-accent: #E7E5DC;
+  border-color: #E7E5DC;
+  background: var(--yoru-deep);
+}
+.map-node.dan[data-accent="gekko"] {
+  --rank-accent: var(--tsuki);
+  border-color: var(--tsuki);
+  background: var(--yoru-deep);
+}
+.rank-moon {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  width: 42px;
+  height: 42px;
+  opacity: 0.72;
+  pointer-events: none;
+}
+.rank-moon svg { width: 100% !important; height: 100% !important; }
+.map-node.secret-dan {
+  grid-template-columns: 64px minmax(0, 1fr);
+  border-color: var(--line);
+  border-style: dashed;
+  background: var(--yoru-deep);
+  color: var(--line);
+}
+.map-node.secret-dan small { color: var(--line); }
+.map-node.secret-dan .shadow-node-svg { color: var(--line); }
+.map-node.dan.current {
+  border-color: var(--chochin);
+  box-shadow: var(--current-ring-shadow);
+}
+body[data-theme="light"] .map-node.dan[data-accent="hakkin"],
+body[data-theme="light"] .map-node.dan[data-accent="gekko"] {
+  --rank-accent: rgba(42, 38, 34, 0.72);
+  border-color: rgba(42, 38, 34, 0.72);
+}
+body[data-theme="light"] .map-node.dan.current { border-color: var(--chochin); }
 
 .next-panel {
   padding: 18px;
@@ -944,7 +1017,13 @@ textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius:
   75% { transform: translateX(-3px); }
 }
 
+@keyframes secretReveal {
+  from { opacity: 0; transform: translateY(12px); filter: brightness(0.55); }
+  to { opacity: 1; transform: translateY(0); filter: brightness(1); }
+}
+
 .teacher-unlock.shake { animation: teacherShake 180ms ease both; }
+.map-node.secret-reveal { animation: secretReveal 1200ms ease-out both; }
 
 @media (max-width: 1024px) {
   .home-grid { grid-template-columns: 1fr; }

@@ -12,6 +12,13 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
   moon() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="22" fill="var(--tsuki)"/><circle cx="50" cy="31" r="20" fill="var(--yoru)"/></svg>`;
   },
+  shadowNode() {
+    return `<svg viewBox="0 0 80 80" aria-hidden="true" class="shadow-node-svg">
+      <path d="M18 62c3-16 11-25 22-25s19 9 22 25" fill="currentColor" opacity=".5"/>
+      <path d="M25 35c0-13 6-21 15-21s15 8 15 21c-5-4-10-6-15-6s-10 2-15 6Z" fill="currentColor"/>
+      <path d="M30 30h20" fill="none" stroke="var(--yoru-deep)" stroke-width="5" stroke-linecap="round"/>
+    </svg>`;
+  },
   lantern() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
       <path d="M34 10h12M40 10v10" stroke="var(--tsuki)" stroke-width="5" stroke-linecap="round"/>

@@ -22,6 +22,12 @@ const UI_TEXT = globalThis.UI_TEXT = {
   },
   lockedPractice: "まず修行を1かいやろう",
   noBanzukeRecord: "まだ記録なし",
+  secretDan: {
+    hiddenName: "？？？",
+    hiddenDesc: "まだ、その名を知らぬ",
+    route: "実戦の修行 ／ 三の試し",
+    revealToast: "あらたな影が、道の先に見えた"
+  },
   kanjiDisplaySetting: "かんじで ひょうじ（ふりがなつき）"
 };
 
@@ -34,6 +40,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   let teacherDanTargetId = "";
   let menuState = null;
   let menuKeyListenerReady = false;
+  const revealedSecretDans = new Set();
 
   function byId(id) {
     return document.getElementById(id);
@@ -491,14 +498,33 @@ const NindaApp = globalThis.NindaApp = (function () {
         <span><b>${stage.label}</b><small>${stage.title}</small></span>
       </button>` };
     });
-    const danNodes = RANK_DATA.dans.map((dan) => {
+    const newlyRevealed = [];
+    const danNodes = RANK_DATA.dans.map((dan, danPosition) => {
       const active = teacher ? teacherDanTargetId === dan.id : save.dan === dan.id;
       const reached = SaveManager.DAN_ORDER.indexOf(save.dan) >= SaveManager.DAN_ORDER.indexOf(dan.id);
-      const className = `map-node dan ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""}`;
-      const content = `<span class="node-icon">${active ? SVG_ICONS.lantern() : SVG_ICONS.torii()}</span><span><b>${dan.label}</b><small>実戦</small></span>`;
+      const previousDan = SaveManager.DAN_ORDER[SaveManager.DAN_ORDER.indexOf(dan.id) - 1];
+      const secretRevealed = !dan.secret || teacher || danIndex(save.dan) >= danIndex(previousDan);
+      const sizeClass = danPosition < 2 ? "dan-lower" : "dan-upper";
+      if (!secretRevealed) {
+        const hidden = `<div class="map-node dan dan-upper secret-dan" data-secret-dan="${dan.id}">
+          <span class="node-icon">${SVG_ICONS.shadowNode()}</span>
+          <span class="dan-copy"><b>${UI_TEXT.secretDan.hiddenName}</b><small>${UI_TEXT.secretDan.hiddenDesc}</small></span>
+        </div>`;
+        return { id: dan.id, html: hidden };
+      }
+      const firstReveal = dan.secret && !teacher && !revealedSecretDans.has(dan.id);
+      if (firstReveal) {
+        revealedSecretDans.add(dan.id);
+        newlyRevealed.push(dan.id);
+      }
+      const className = `map-node dan ${sizeClass} ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""} ${firstReveal ? "secret-reveal" : ""}`;
+      const icon = active ? SVG_ICONS.lantern() : SVG_ICONS.torii();
+      const route = danPosition >= 2 ? `<small class="dan-route">${UI_TEXT.secretDan.route}</small>` : "";
+      const moon = dan.id === "kage" ? `<span class="rank-moon">${SVG_ICONS.moon()}</span>` : "";
+      const content = `<span class="node-icon">${icon}</span><span class="dan-copy"><b>${dan.label}</b><small>実戦</small></span>${route}${moon}`;
       return { id: dan.id, html: teacher || reached
-        ? `<button type="button" class="${className}" data-dan-id="${dan.id}">${content}</button>`
-        : `<div class="${className}">${content}</div>` };
+        ? `<button type="button" class="${className}" data-accent="${dan.mapAccent}" data-dan-id="${dan.id}">${content}</button>`
+        : `<div class="${className}" data-accent="${dan.mapAccent}">${content}</div>` };
     });
     const nyumonHtml = stageNodes.filter((node) => node.type === "nyumon").map((node) => node.html).join("");
     const kyuHtml = stageNodes.filter((node) => node.type === "kyu").map((node) => node.html).join("");
@@ -517,6 +543,9 @@ const NindaApp = globalThis.NindaApp = (function () {
         <div class="map-path cols-2">${lowerDanHtml}</div>
         <div class="map-path cols-1">${upperDanHtml}</div>
       </section>`;
+    if (newlyRevealed.length && globalThis.AchievementManager && AchievementManager.toast) {
+      window.setTimeout(() => AchievementManager.toast(UI_TEXT.secretDan.revealToast), 0);
+    }
     map.querySelectorAll("[data-stage-id]").forEach((button) => {
       button.addEventListener("click", () => {
         if (SaveManager.isTeacherMode()) {

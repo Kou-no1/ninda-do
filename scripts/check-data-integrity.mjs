@@ -275,7 +275,13 @@ for (const tier of tierOrder) {
 }
 let previousKpm = 0;
 let previousAccuracy = 0;
+const danOrder = RANK_DATA.dans.map((dan) => dan.id);
+const secretDanIds = RANK_DATA.dans.filter((dan) => dan.secret === true).map((dan) => dan.id);
 for (const dan of RANK_DATA.dans) {
+  ok(typeof dan.mapAccent === "string" && dan.mapAccent.trim().length > 0, `NG [dan:${dan.id}] mapAccent がありません`);
+  if (dan.secret === true) {
+    ok(danOrder.indexOf(dan.id) > 0, `NG [dan:${dan.id}] 先頭段位をsecretにはできません`);
+  }
   if (!dan.exam) continue;
   ok(typeof dan.exam.desc === "string" && dan.exam.desc.trim().length > 0, `NG [dan:${dan.id}] exam.desc がありません`);
   ok(dan.exam.jissen.kpm >= previousKpm, `NG [dan:${dan.id}] kpm が単調非減少ではありません`);
@@ -283,6 +289,8 @@ for (const dan of RANK_DATA.dans) {
   previousKpm = dan.exam.jissen.kpm;
   previousAccuracy = dan.exam.jissen.accuracy;
 }
+ok(secretDanIds.length === 2 && secretDanIds.includes("tokujonin") && secretDanIds.includes("kage"),
+  `NG [dan:secret] secret:true は tokujonin / kage のみに指定してください`);
 
 const mustCases = [
   { text: "しか", good: ["sika", "shika"], bad: [] },
