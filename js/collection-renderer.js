@@ -21,7 +21,11 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
     if (!mount) return;
-    mount.className = `collection-grid ${activeTab === "nicknames" ? "nickname-grid" : "scroll-grid"}`;
+    mount.className = `collection-grid ${activeTab === "nicknames" ? "nickname-grid" : activeTab === "banzuke" ? "banzuke-grid" : "scroll-grid"}`;
+    if (activeTab === "banzuke") {
+      renderBanzuke(mount, save, teacher);
+      return;
+    }
     if (activeTab === "nicknames") {
       mount.innerHTML = NICKNAME_DATA.map((item) => {
         const owned = save.nicknames.includes(item.id);
@@ -78,6 +82,67 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
             </div>`}
       </article>`;
     }).join("");
+  }
+
+  function renderBanzuke(mount, save, teacher) {
+    const records = save.best && save.best.banzuke || {};
+    const currentDanIndex = SaveManager.DAN_ORDER.indexOf(save.dan || "none");
+    mount.innerHTML = RANK_DATA.banzuke.courses.map((course) => {
+      const requiredIndex = SaveManager.DAN_ORDER.indexOf(course.dan);
+      const unlocked = teacher || currentDanIndex >= requiredIndex;
+      const record = records[course.id] || null;
+      const tier = record && record.tier || "無位";
+      const tierClassName = tierClass(tier);
+      if (!unlocked) {
+        return `<article class="banzuke-record-card locked">
+          <div class="banzuke-record-main">
+            <h2>${escapeHtml(course.label)}</h2>
+            <p>${escapeHtml(course.desc)}</p>
+            <p class="banzuke-lock-reason">${SVG_ICONS.lock()} ${escapeHtml(requiredDanLabel(course.dan))}に昇段するとひらく</p>
+          </div>
+          <div class="banzuke-tier tier-none"><span class="tier-badge">${SVG_ICONS.tierBadge()}</span><strong>未解放</strong></div>
+        </article>`;
+      }
+      const recordLine = record
+        ? `じこベスト <strong>${numberText(record.score)}</strong> ／ ${escapeHtml(formatRecordDate(record.date))}`
+        : UI_TEXT.noBanzukeRecord;
+      return `<article class="banzuke-record-card ${record ? "recorded" : "untried"}">
+        <div class="banzuke-record-main">
+          <h2>${escapeHtml(course.label)}</h2>
+          <p>${escapeHtml(course.desc)}</p>
+          <p class="banzuke-best-line">${recordLine}</p>
+          <p class="banzuke-next-tier">${escapeHtml(nextTierText(course.id, record))}</p>
+        </div>
+        <div class="banzuke-tier ${tierClassName}">
+          <span class="tier-badge">${SVG_ICONS.tierBadge()}</span>
+          <strong>${record ? escapeHtml(tier) : UI_TEXT.noBanzukeRecord}</strong>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function nextTierText(courseId, record) {
+    const tierOrder = RANK_DATA.banzuke.tierOrder.slice(1);
+    if (record && record.tier === tierOrder[tierOrder.length - 1]) return "月光にとうたつ";
+    const currentIndex = record ? tierOrder.indexOf(record.tier) : -1;
+    const nextTier = tierOrder[Math.max(0, currentIndex + 1)];
+    const target = RANK_DATA.banzuke.tiers[courseId][nextTier];
+    const gap = Math.max(0, target - Number(record && record.score || 0));
+    return `あと ${gap}てんで ${nextTier}`;
+  }
+
+  function requiredDanLabel(danId) {
+    const dan = RANK_DATA.dans.find((item) => item.id === danId);
+    return dan ? dan.label : danId;
+  }
+
+  function formatRecordDate(value) {
+    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(value || ""));
+    return match ? `${Number(match[1])}/${Number(match[2])}/${Number(match[3])}` : String(value || "");
+  }
+
+  function tierClass(tier) {
+    return { "銅": "tier-copper", "銀": "tier-silver", "金": "tier-gold", "白金": "tier-platinum", "月光": "tier-gekko" }[tier] || "tier-none";
   }
 
   function scrollCordClass(item) {

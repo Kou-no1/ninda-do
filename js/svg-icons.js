@@ -81,6 +81,11 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
       <circle cx="40" cy="40" r="8" fill="var(--paper)" stroke="currentColor" stroke-width="3"/>
     </svg>`;
   },
+  lock() {
+    return `<svg viewBox="0 0 24 24" aria-hidden="true" class="lock-svg">
+      <path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="5" y="10" width="14" height="10" rx="2"/>
+    </svg>`;
+  },
   ninja() {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
       <circle cx="40" cy="36" r="24" fill="var(--ai)" stroke="var(--tsuki)" stroke-width="4"/>
