@@ -480,27 +480,43 @@ const NindaApp = globalThis.NindaApp = (function () {
     if (!map) return;
     const teacher = SaveManager.isTeacherMode();
     const currentIndex = CURRICULUM_DATA.stages.findIndex((item) => item.id === currentStageId);
-    const stageHtml = CURRICULUM_DATA.stages.map((stage, index) => {
+    const stageNodes = CURRICULUM_DATA.stages.map((stage, index) => {
       const cleared = save.clearedStages.includes(stage.id);
       const current = stage.id === currentStageId;
       const alwaysOpen = stage.type === "nyumon";
       const normallyAvailable = alwaysOpen || cleared || current || index <= currentIndex;
       const available = teacher || normallyAvailable;
-      return `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""} ${teacher && !normallyAvailable ? "teacher-open" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
+      return { type: stage.type, html: `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""} ${teacher && !normallyAvailable ? "teacher-open" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
         <span class="node-icon">${current ? SVG_ICONS.lantern() : stage.type === "nyumon" ? SVG_ICONS.torii() : SVG_ICONS.scroll(stage.jutsu[0] || "stage", !cleared)}</span>
         <span><b>${stage.label}</b><small>${stage.title}</small></span>
-      </button>`;
-    }).join("");
-    const danHtml = RANK_DATA.dans.map((dan) => {
+      </button>` };
+    });
+    const danNodes = RANK_DATA.dans.map((dan) => {
       const active = teacher ? teacherDanTargetId === dan.id : save.dan === dan.id;
       const reached = SaveManager.DAN_ORDER.indexOf(save.dan) >= SaveManager.DAN_ORDER.indexOf(dan.id);
       const className = `map-node dan ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""}`;
       const content = `<span class="node-icon">${active ? SVG_ICONS.lantern() : SVG_ICONS.torii()}</span><span><b>${dan.label}</b><small>実戦</small></span>`;
-      return teacher || reached
+      return { id: dan.id, html: teacher || reached
         ? `<button type="button" class="${className}" data-dan-id="${dan.id}">${content}</button>`
-        : `<div class="${className}">${content}</div>`;
-    }).join("");
-    map.innerHTML = `<div class="map-path">${stageHtml}${danHtml}</div>`;
+        : `<div class="${className}">${content}</div>` };
+    });
+    const nyumonHtml = stageNodes.filter((node) => node.type === "nyumon").map((node) => node.html).join("");
+    const kyuHtml = stageNodes.filter((node) => node.type === "kyu").map((node) => node.html).join("");
+    const lowerDanHtml = danNodes.slice(0, 2).map((node) => node.html).join("");
+    const upperDanHtml = danNodes.slice(2).map((node) => node.html).join("");
+    map.innerHTML = `<section class="map-section">
+        <h3 class="map-section-title">入門の巻</h3>
+        <div class="map-path cols-4">${nyumonHtml}</div>
+      </section>
+      <section class="map-section">
+        <h3 class="map-section-title">型の修行</h3>
+        <div class="map-path cols-4">${kyuHtml}</div>
+      </section>
+      <section class="map-section">
+        <h3 class="map-section-title">実戦の修行</h3>
+        <div class="map-path cols-2">${lowerDanHtml}</div>
+        <div class="map-path cols-1">${upperDanHtml}</div>
+      </section>`;
     map.querySelectorAll("[data-stage-id]").forEach((button) => {
       button.addEventListener("click", () => {
         if (SaveManager.isTeacherMode()) {
