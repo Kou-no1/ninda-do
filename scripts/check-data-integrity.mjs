@@ -125,6 +125,8 @@ function entryKana(entry) {
   return typeof entry === "string" ? entry : entry && entry.kana;
 }
 
+let rubyEntryCount = 0;
+
 function checkMichiQuality(course, ref) {
   ok(ref && ref.course === course.id, `NG [${course.id}] course定義が不正です`);
   const items = ref && Array.isArray(ref.items) ? ref.items : [];
@@ -139,6 +141,22 @@ function checkMichiQuality(course, ref) {
       ok(typeof entry.kana === "string" && entry.kana.length > 0, `NG [${course.id}] オブジェクト形式の kana が不足しています`);
       if ("display" in entry) ok(typeof entry.display === "string" && entry.display.length > 0, `NG [${course.id}] display が空です`);
       if ("source" in entry) ok(typeof entry.source === "string" && entry.source.length > 0, `NG [${course.id}] source が空です`);
+      if ("ruby" in entry) {
+        rubyEntryCount += 1;
+        ok(typeof entry.display === "string" && entry.display.length > 0, `NG [${course.id}] "${kana}": ruby に対応する display がありません`);
+        ok(Array.isArray(entry.ruby) && entry.ruby.length > 0, `NG [${course.id}] "${kana}": ruby が配列ではないか空です`);
+        const parts = Array.isArray(entry.ruby) ? entry.ruby : [];
+        let joined = "";
+        parts.forEach((part, index) => {
+          const validShape = Array.isArray(part) && (part.length === 1 || part.length === 2);
+          ok(validShape, `NG [${course.id}] "${kana}": ruby[${index}] は1要素または2要素の配列ではありません`);
+          if (!validShape) return;
+          ok(typeof part[0] === "string" && part[0].length > 0, `NG [${course.id}] "${kana}": ruby[${index}] の文字列が空です`);
+          if (typeof part[0] === "string") joined += part[0];
+          if (part.length === 2) ok(typeof part[1] === "string" && part[1].length > 0, `NG [${course.id}] "${kana}": ruby[${index}] のよみが空です`);
+        });
+        ok(joined === entry.display, `NG [${course.id}] "${kana}": ruby連結「${joined}」が display「${entry.display}」と一致しません`);
+      }
     }
   }
 }
@@ -213,6 +231,7 @@ for (const course of RANK_DATA.banzuke.courses) {
     ok(InputEngine.isTypeable(kana, allKeys), `NG [${course.id}] "${kana}": 全キーでも打てる経路がありません`);
   }
 }
+ok(rubyEntryCount === 36, `NG [ruby] ルビ定義は36本必要です（現在 ${rubyEntryCount} 本）`);
 
 const validNicknameCondTypes = new Set([
   "stage_clear", "exam_nomiss", "rhythm_hold", "first_pass_guide0",
