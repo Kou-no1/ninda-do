@@ -10,6 +10,16 @@
   --shu: #D4544A;
   --kin: #D9B45C;
   --take: #8FB878;
+  --rank-kin: #D9B45C;
+  --rank-kin-text: #D9B45C;
+  --rank-kin-bg: linear-gradient(100deg, #17120A, var(--yoru-deep));
+  --rank-hakkin: #DCE3EA;
+  --rank-hakkin-text: #DCE3EA;
+  --rank-hakkin-bg: linear-gradient(100deg, #0D1420, var(--yoru-deep));
+  --rank-gekko: #ECE7D8;
+  --rank-gekko-text: #ECE7D8;
+  --rank-gekko-bg: radial-gradient(120% 100% at 82% 50%, #131A28 0%, #070B12 60%);
+  --rank-gekko-name-shadow: 0 0 18px rgba(236, 231, 216, 0.45);
   --line: rgba(236, 231, 216, 0.16);
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
   --hover-ring-shadow: 0 0 0 3px rgba(232, 163, 61, 0.22);
@@ -28,6 +38,16 @@ body[data-theme="light"] {
   --shu: #C0392F;
   --kin: #8F6B23;
   --take: #4C6B39;
+  --rank-kin: #8F6B23;
+  --rank-kin-text: #8B6720;
+  --rank-kin-bg: #F7F0DC;
+  --rank-hakkin: #43607A;
+  --rank-hakkin-text: #43607A;
+  --rank-hakkin-bg: #EDF2F7;
+  --rank-gekko: #2A2622;
+  --rank-gekko-text: #2A2622;
+  --rank-gekko-bg: #E7E4DB;
+  --rank-gekko-name-shadow: none;
   --line: rgba(42, 38, 34, 0.2);
   --shadow: 0 10px 30px rgba(42, 38, 34, 0.13);
   --hover-ring-shadow: 0 0 0 2px var(--chochin), var(--shadow);
@@ -255,47 +275,85 @@ button.map-node.dan { cursor: pointer; }
 }
 .map-node.dan-lower .node-icon svg { width: 56px; height: 56px; }
 .map-node.dan-upper .node-icon svg { width: 64px; height: 64px; }
-.map-node.dan-upper b { font-size: 28px; }
 .dan-copy { min-width: 0; }
-.dan-route {
+.map-node.dan-upper:not(.secret-dan) {
+  border-color: var(--line);
+  background: var(--rank-card-bg);
+}
+.map-node.dan-upper:not(.secret-dan)::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  background: linear-gradient(180deg, var(--rank-accent), transparent);
+}
+.map-node.dan-upper:not(.secret-dan)::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: 2;
+  border: 1px solid color-mix(in srgb, var(--rank-accent) 35%, transparent);
+  pointer-events: none;
+}
+.map-node.dan-upper:not(.secret-dan) > *:not(.rank-watermark) { position: relative; z-index: 3; }
+.map-node.dan-upper:not(.secret-dan) .dan-copy b {
+  color: var(--rank-text);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.map-node.dan-upper:not(.secret-dan) .dan-copy small,
+.map-node.dan-upper:not(.secret-dan) .dan-rank-meta {
+  color: color-mix(in srgb, var(--rank-text) 70%, black);
+}
+.map-node.dan-lower .dan-copy small { color: var(--tsuki); opacity: 0.72; }
+.dan-rank-meta {
   margin: 0 22px 0 12px;
-  color: rgba(236, 231, 216, 0.72);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
   white-space: nowrap;
 }
-.map-node.dan[data-accent]:not([data-accent="none"])::before {
+.map-node.dan-lower[data-accent="ai"]::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  background: var(--rank-accent);
+  background: var(--ai);
 }
-.map-node.dan[data-accent="ai"] { --rank-accent: var(--ai); border-color: var(--ai); }
+.map-node.dan[data-accent="ai"] { --rank-accent: var(--ai); }
 .map-node.dan[data-accent="kin"] {
-  --rank-accent: var(--kin);
-  border-color: var(--kin);
-  background: rgba(217, 180, 92, 0.12);
+  --rank-accent: var(--rank-kin);
+  --rank-text: var(--rank-kin-text);
+  --rank-card-bg: var(--rank-kin-bg);
 }
 .map-node.dan[data-accent="hakkin"] {
-  --rank-accent: #E7E5DC;
-  border-color: #E7E5DC;
-  background: var(--yoru-deep);
+  --rank-accent: var(--rank-hakkin);
+  --rank-text: var(--rank-hakkin-text);
+  --rank-card-bg: var(--rank-hakkin-bg);
 }
 .map-node.dan[data-accent="gekko"] {
-  --rank-accent: var(--tsuki);
-  border-color: var(--tsuki);
-  background: var(--yoru-deep);
+  --rank-accent: var(--rank-gekko);
+  --rank-text: var(--rank-gekko-text);
+  --rank-card-bg: var(--rank-gekko-bg);
 }
-.rank-moon {
+.map-node.dan[data-accent="gekko"] .dan-copy b { text-shadow: var(--rank-gekko-name-shadow); }
+.rank-icon { color: var(--rank-accent); opacity: 0.85; }
+.rank-watermark {
   position: absolute;
-  top: 2px;
-  right: 4px;
-  width: 42px;
-  height: 42px;
-  opacity: 0.72;
+  z-index: 1;
+  top: 50%;
+  right: -34px;
+  width: 198px;
+  height: 198px;
+  color: var(--rank-accent);
+  opacity: 0.06;
+  transform: translateY(-50%);
   pointer-events: none;
 }
-.rank-moon svg { width: 100% !important; height: 100% !important; }
+.map-node.dan[data-accent="gekko"] .rank-watermark { opacity: 0.1; }
+.rank-watermark svg { width: 100% !important; height: 100% !important; }
 .map-node.secret-dan {
   grid-template-columns: 64px minmax(0, 1fr);
   border-color: var(--line);
@@ -305,16 +363,14 @@ button.map-node.dan { cursor: pointer; }
 }
 .map-node.secret-dan small { color: var(--line); }
 .map-node.secret-dan .shadow-node-svg { color: var(--line); }
+.map-node.dan.cleared,
+.map-node.dan.teacher-open:not(.current) { border-color: var(--line); }
+.map-node.dan.teacher-open:not(.current) { border-style: dashed; }
 .map-node.dan.current {
   border-color: var(--chochin);
+  border-style: solid;
   box-shadow: var(--current-ring-shadow);
 }
-body[data-theme="light"] .map-node.dan[data-accent="hakkin"],
-body[data-theme="light"] .map-node.dan[data-accent="gekko"] {
-  --rank-accent: rgba(42, 38, 34, 0.72);
-  border-color: rgba(42, 38, 34, 0.72);
-}
-body[data-theme="light"] .map-node.dan.current { border-color: var(--chochin); }
 
 .next-panel {
   padding: 18px;
@@ -521,7 +577,7 @@ body[data-theme="light"] .map-node.dan.current { border-color: var(--chochin); }
 .banzuke-tier.tier-copper { color: #B87333; }
 .banzuke-tier.tier-silver { color: #C6C6C6; }
 .banzuke-tier.tier-gold { color: var(--kin); }
-.banzuke-tier.tier-platinum { color: #E7E5DC; }
+.banzuke-tier.tier-platinum { color: #DCE3EA; }
 .banzuke-tier.tier-gekko {
   color: var(--tsuki);
   filter: drop-shadow(0 0 8px rgba(236, 231, 216, 0.3));
@@ -965,7 +1021,7 @@ textarea { width: 100%; border: 2px solid rgba(42, 38, 34, 0.22); border-radius:
 .tier-copper strong, .tier-copper .tier-badge { color: #B87333; }
 .tier-silver strong, .tier-silver .tier-badge { color: #C6C6C6; }
 .tier-gold strong, .tier-gold .tier-badge { color: var(--kin); }
-.tier-platinum strong, .tier-platinum .tier-badge { color: #E7E5DC; text-shadow: 0 0 1px var(--sumi); }
+.tier-platinum strong, .tier-platinum .tier-badge { color: #DCE3EA; text-shadow: 0 0 1px var(--sumi); }
 .tier-gekko strong, .tier-gekko .tier-badge {
   color: var(--tsuki);
   filter: drop-shadow(0 0 8px rgba(236, 231, 216, 0.42));

@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -22,10 +22,13 @@ const UI_TEXT = globalThis.UI_TEXT = {
   },
   lockedPractice: "まず修行を1かいやろう",
   noBanzukeRecord: "まだ記録なし",
+  danMeta: {
+    exam: "三の試し",
+    kpmUnit: "打/分"
+  },
   secretDan: {
     hiddenName: "？？？",
     hiddenDesc: "まだ、その名を知らぬ",
-    route: "実戦の修行 ／ 三の試し",
     revealToast: "あらたな影が、道の先に見えた"
   },
   kanjiDisplaySetting: "かんじで ひょうじ（ふりがなつき）"
@@ -518,10 +521,17 @@ const NindaApp = globalThis.NindaApp = (function () {
         newlyRevealed.push(dan.id);
       }
       const className = `map-node dan ${sizeClass} ${reached ? "cleared" : ""} ${active ? "current" : ""} ${teacher && !reached ? "teacher-open" : ""} ${firstReveal ? "secret-reveal" : ""}`;
-      const icon = active ? SVG_ICONS.lantern() : SVG_ICONS.torii();
-      const route = danPosition >= 2 ? `<small class="dan-route">${UI_TEXT.secretDan.route}</small>` : "";
-      const moon = dan.id === "kage" ? `<span class="rank-moon">${SVG_ICONS.moon()}</span>` : "";
-      const content = `<span class="node-icon">${icon}</span><span class="dan-copy"><b>${dan.label}</b><small>実戦</small></span>${route}${moon}`;
+      const upper = danPosition >= 2;
+      const icon = active ? SVG_ICONS.lantern() : SVG_ICONS.torii(upper ? "currentColor" : undefined);
+      const iconClass = upper && !active ? " rank-icon" : "";
+      const jissen = dan.exam && dan.exam.jissen;
+      const meta = upper && jissen
+        ? `<small class="dan-rank-meta">${UI_TEXT.danMeta.exam} ／ ${jissen.kpm}${UI_TEXT.danMeta.kpmUnit}・${Math.round(jissen.accuracy * 100)}%</small>`
+        : "";
+      const watermark = upper
+        ? `<span class="rank-watermark">${SVG_ICONS.rankWatermark(dan.id === "kage" ? "moon" : "shuriken")}</span>`
+        : "";
+      const content = `<span class="node-icon${iconClass}">${icon}</span><span class="dan-copy"><b>${dan.label}</b><small>${dan.flavor}</small></span>${meta}${watermark}`;
       return { id: dan.id, html: teacher || reached
         ? `<button type="button" class="${className}" data-accent="${dan.mapAccent}" data-dan-id="${dan.id}">${content}</button>`
         : `<div class="${className}" data-accent="${dan.mapAccent}">${content}</div>` };

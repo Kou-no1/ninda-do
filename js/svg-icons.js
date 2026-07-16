@@ -95,9 +95,15 @@ const SVG_ICONS = globalThis.SVG_ICONS = {
       <path d="M26 62h28" stroke="var(--tsuki)" stroke-width="5" stroke-linecap="round"/>
     </svg>`;
   },
-  torii() {
+  rankWatermark(kind) {
+    const mark = kind === "moon"
+      ? `<circle cx="50" cy="50" r="34" fill="currentColor"/><circle cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="3"/>`
+      : `<circle cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="4"/><path d="M50 12 60 40 88 50 60 60 50 88 40 60 12 50 40 40Z" fill="currentColor"/><circle cx="50" cy="50" r="9" fill="none" stroke="currentColor" stroke-width="4"/>`;
+    return `<svg viewBox="0 0 100 100" aria-hidden="true" class="rank-watermark-svg">${mark}</svg>`;
+  },
+  torii(stroke) {
     return `<svg viewBox="0 0 80 80" aria-hidden="true">
-      <path d="M14 18h52M20 28h40M28 28v36M52 28v36M24 64h32" stroke="var(--line)" stroke-width="8" stroke-linecap="round"/>
+      <path d="M14 18h52M20 28h40M28 28v36M52 28v36M24 64h32" stroke="${stroke || "var(--line)"}" stroke-width="8" stroke-linecap="round"/>
     </svg>`;
   }
 };
