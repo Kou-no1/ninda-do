@@ -17,8 +17,13 @@
   --rank-hakkin-text: #DCE3EA;
   --rank-hakkin-bg: linear-gradient(100deg, #0D1420, var(--yoru-deep));
   --rank-gekko: #ECE7D8;
+  --rank-murasaki: #A98CD9;
   --rank-gekko-text: #ECE7D8;
-  --rank-gekko-bg: radial-gradient(120% 100% at 82% 50%, #131A28 0%, #070B12 60%);
+  --rank-gekko-border: var(--rank-hakkin);
+  --rank-gekko-inner: var(--rank-murasaki);
+  --rank-gekko-band-start: var(--rank-hakkin);
+  --rank-gekko-band-end: var(--rank-murasaki);
+  --rank-gekko-bg: radial-gradient(120% 100% at 82% 50%, #1A1430 0%, #070B12 62%);
   --rank-gekko-name-shadow: 0 0 18px rgba(236, 231, 216, 0.45);
   --line: rgba(236, 231, 216, 0.16);
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
@@ -46,7 +51,11 @@ body[data-theme="light"] {
   --rank-hakkin-bg: #EDF2F7;
   --rank-gekko: #2A2622;
   --rank-gekko-text: #2A2622;
-  --rank-gekko-bg: #E7E4DB;
+  --rank-gekko-border: #6B5A8E;
+  --rank-gekko-inner: #6B5A8E;
+  --rank-gekko-band-start: #8A94A0;
+  --rank-gekko-band-end: #6B5A8E;
+  --rank-gekko-bg: #ECE9F2;
   --rank-gekko-name-shadow: none;
   --line: rgba(42, 38, 34, 0.2);
   --shadow: 0 10px 30px rgba(42, 38, 34, 0.13);
@@ -338,6 +347,12 @@ button.map-node.dan { cursor: pointer; }
   --rank-text: var(--rank-gekko-text);
   --rank-card-bg: var(--rank-gekko-bg);
 }
+.map-node.dan-upper[data-accent="gekko"]:not(.secret-dan)::before {
+  background: linear-gradient(180deg, var(--rank-gekko-band-start), var(--rank-gekko-band-end));
+}
+.map-node.dan-upper[data-accent="gekko"]:not(.secret-dan)::after {
+  border-color: color-mix(in srgb, var(--rank-gekko-inner) 55%, transparent);
+}
 .map-node.dan[data-accent="gekko"] .dan-copy b { text-shadow: var(--rank-gekko-name-shadow); }
 .rank-icon { color: var(--rank-accent); opacity: 0.85; }
 .rank-watermark {
@@ -371,6 +386,7 @@ button.map-node.dan { cursor: pointer; }
   border-style: solid;
   box-shadow: var(--current-ring-shadow);
 }
+.map-node.dan[data-accent="gekko"]:not(.secret-dan) { border-color: var(--rank-gekko-border); }
 
 .next-panel {
   padding: 18px;
