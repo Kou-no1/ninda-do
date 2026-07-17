@@ -162,6 +162,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .entry-panel .hint, .settings-panel .hint, .license-card .hint, .result-panel .hint { color: rgba(42, 38, 34, 0.68); }
 .button-row, .top-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .button-stack { display: grid; gap: 12px; }
+.button-stack button { min-height: 50px; line-height: 1.35; }
+.button-stack ruby { ruby-position: over; white-space: nowrap; }
+.button-stack rt { font-size: 45%; line-height: 1; }
 
 .topbar, .play-header {
   display: flex;

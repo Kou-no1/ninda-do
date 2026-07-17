@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.1";
+const APP_VERSION = "1.8.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -7,6 +7,9 @@ const UI_TEXT = globalThis.UI_TEXT = {
   fail: "まだ機（き）は熟していない。もういちど修行だ！",
   noPractice: "まずは一回、しゅぎょうしてからいどもう。",
   keyboardOnly: "このアプリはキーボードをつないであそんでね",
+  menuTraining: "<ruby>修行<rt>しゅぎょう</rt></ruby>",
+  menuExam: "<ruby>試<rt>ため</rt></ruby>し",
+  menuJissen: "<ruby>実戦<rt>じっせん</rt></ruby>の<ruby>間<rt>ま</rt></ruby>",
   trainingDesc: {
     in: "あたらしいキーを、ゆびにおぼえさせる。",
     word: "ならったかなで、ことばをうつ。",
@@ -213,12 +216,13 @@ const NindaApp = globalThis.NindaApp = (function () {
       : stage.id === "kyu1" && save.dan !== "none"
       ? "実戦の修行で、疾風の術をみがこう。"
       : `次は ${stage.label}「${stage.title}」`;
-    byId("trainingButton").textContent = teacherDan ? "実戦の間へ" : "修行をえらぶ";
-    byId("examButton").textContent = teacherDan ? "三の試しをえらぶ" : "試しもえらぶ";
+    byId("trainingButton").innerHTML = teacherDan ? UI_TEXT.menuJissen : UI_TEXT.menuTraining;
+    byId("trainingButton").setAttribute("aria-label", teacherDan ? "じっせんのま" : "しゅぎょう");
+    byId("examButton").innerHTML = UI_TEXT.menuExam;
     byId("examButton").disabled = false;
     byId("examButton").title = "";
     byId("jissenButton").hidden = !teacher && save.dan === "none";
-    byId("jissenButton").textContent = "実戦の間へ";
+    byId("jissenButton").innerHTML = UI_TEXT.menuJissen;
     renderMap(save, teacherDan ? "" : stage.id);
   }
 
