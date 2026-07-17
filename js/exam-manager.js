@@ -192,11 +192,11 @@ const ExamManager = globalThis.ExamManager = (function () {
   function startJissen(menuId) {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
-    if (!teacher && (!save.dan || save.dan === "none")) {
-      alert("疾風の術は、下忍から使えるよ。");
+    const menu = RANK_DATA.jissenMenu.find((item) => item.id === menuId) || RANK_DATA.jissenMenu[0];
+    if (!teacher && danIndex(save.dan) < danIndex(menu.unlockDan)) {
+      alert(`${danLabel(menu.unlockDan)}に昇段するとひらくよ。`);
       return;
     }
-    const menu = RANK_DATA.jissenMenu.find((item) => item.id === menuId) || RANK_DATA.jissenMenu[0];
     if (menu.kind === "banzuke") {
       if (globalThis.NindaApp && NindaApp.openBanzukeCourseMenu) NindaApp.openBanzukeCourseMenu();
       else showBanzukeCourses(save);
@@ -227,7 +227,9 @@ const ExamManager = globalThis.ExamManager = (function () {
 
   function buildJissenItems(menu, save) {
     if (menu.kind === "sentence") {
-      return TrainingManager.sample(DAN_SENTENCES.sentences, 18).map((text) => ({ text, kind: "sentence" }));
+      const source = jissenSource(menu);
+      const count = menu.source === "MICHI_ALL" ? 80 : 18;
+      return TrainingManager.sample(source, count).map((entry) => jissenItem(entry, "sentence")).filter((item) => item.text);
     }
     if (menu.kind === "weak") {
       const weak = MetricsEngine.weakKeys(save.keyStats, 5).map((item) => item.key);
@@ -238,6 +240,28 @@ const ExamManager = globalThis.ExamManager = (function () {
       return TrainingManager.sample(preferred.length ? preferred : DAN_WORDS.words, menu.items || 10).map((text) => ({ text, kind: "word" }));
     }
     return TrainingManager.sample(DAN_WORDS.words, menu.kind === "timeAttack" ? 30 : 24).map((text) => ({ text, kind: "word" }));
+  }
+
+  function jissenSource(menu) {
+    if (menu.source !== "MICHI_ALL") {
+      const ref = globalThis[menu.source];
+      return ref && (ref.sentences || ref.words || ref.items) || [];
+    }
+    return (RANK_DATA.banzuke && RANK_DATA.banzuke.courses || []).flatMap((course) => {
+      const ref = globalThis[course.wordsRef];
+      return ref && Array.isArray(ref.items) ? ref.items : [];
+    }).filter((entry) => entry && typeof entry === "object" && entry.genre === menu.genre);
+  }
+
+  function jissenItem(entry, kind) {
+    const item = typeof entry === "string" ? { kana: entry } : entry || {};
+    return {
+      text: item.kana || "",
+      kind,
+      display: item.display || "",
+      ruby: Array.isArray(item.ruby) ? item.ruby : [],
+      source: item.source || ""
+    };
   }
 
   function showBanzukeCourses(save) {

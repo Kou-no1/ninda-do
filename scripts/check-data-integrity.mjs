@@ -126,6 +126,7 @@ function entryKana(entry) {
 }
 
 let rubyEntryCount = 0;
+const genreCounts = { kotowaza: 0, meibun: 0, koten: 0 };
 
 function checkMichiQuality(course, ref) {
   ok(ref && ref.course === course.id, `NG [${course.id}] course定義が不正です`);
@@ -141,6 +142,10 @@ function checkMichiQuality(course, ref) {
       ok(typeof entry.kana === "string" && entry.kana.length > 0, `NG [${course.id}] オブジェクト形式の kana が不足しています`);
       if ("display" in entry) ok(typeof entry.display === "string" && entry.display.length > 0, `NG [${course.id}] display が空です`);
       if ("source" in entry) ok(typeof entry.source === "string" && entry.source.length > 0, `NG [${course.id}] source が空です`);
+      if ("genre" in entry) {
+        ok(Object.hasOwn(genreCounts, entry.genre), `NG [${course.id}] "${kana}": genre ${entry.genre} は未定義です`);
+        if (Object.hasOwn(genreCounts, entry.genre)) genreCounts[entry.genre] += 1;
+      }
       if ("ruby" in entry) {
         rubyEntryCount += 1;
         ok(typeof entry.display === "string" && entry.display.length > 0, `NG [${course.id}] "${kana}": ruby に対応する display がありません`);
@@ -232,6 +237,9 @@ for (const course of RANK_DATA.banzuke.courses) {
   }
 }
 ok(rubyEntryCount === 36, `NG [ruby] ルビ定義は36本必要です（現在 ${rubyEntryCount} 本）`);
+ok(genreCounts.kotowaza === 9, `NG [genre:kotowaza] 9本必要です（現在 ${genreCounts.kotowaza} 本）`);
+ok(genreCounts.meibun === 15, `NG [genre:meibun] 15本必要です（現在 ${genreCounts.meibun} 本）`);
+ok(genreCounts.koten === 12, `NG [genre:koten] 12本必要です（現在 ${genreCounts.koten} 本）`);
 
 const validNicknameCondTypes = new Set([
   "stage_clear", "exam_nomiss", "rhythm_hold", "first_pass_guide0",
@@ -246,9 +254,18 @@ for (const item of NICKNAME_DATA) {
 }
 ok(nicknameIds.size === NICKNAME_DATA.length, "NG [nickname] id が重複しています");
 
+const validDanIds = new Set(RANK_DATA.dans.map((dan) => dan.id));
+const michiAllItems = Object.values(michiRefs).flatMap((ref) => ref && Array.isArray(ref.items) ? ref.items : []);
 for (const menu of RANK_DATA.jissenMenu) {
   ok(typeof menu.desc === "string" && menu.desc.trim().length > 0, `NG [jissenMenu:${menu.id}] desc がありません`);
-  if (menu.source) ok(context[menu.source], `NG [jissenMenu:${menu.id}] source ${menu.source} が存在しません`);
+  ok(validDanIds.has(menu.unlockDan), `NG [jissenMenu:${menu.id}] unlockDan ${menu.unlockDan} が段位に存在しません`);
+  if (menu.source === "MICHI_ALL") {
+    ok(typeof menu.genre === "string" && menu.genre.length > 0, `NG [jissenMenu:${menu.id}] MICHI_ALL には genre が必要です`);
+    const pool = michiAllItems.filter((entry) => entry && typeof entry === "object" && entry.genre === menu.genre);
+    ok(pool.length >= 5, `NG [jissenMenu:${menu.id}] genre ${menu.genre} の語彙は5本以上必要です（現在 ${pool.length} 本）`);
+  } else if (menu.source) {
+    ok(context[menu.source], `NG [jissenMenu:${menu.id}] source ${menu.source} が存在しません`);
+  }
 }
 for (const course of RANK_DATA.banzuke.courses) {
   ok(typeof course.desc === "string" && course.desc.trim().length > 0, `NG [banzuke:${course.id}] desc がありません`);

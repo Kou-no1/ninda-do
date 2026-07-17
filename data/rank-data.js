@@ -27,10 +27,12 @@ const RANK_DATA = globalThis.RANK_DATA = {
     } }
   ],
   jissenMenu: [
-    { id: "word-jissen", label: "ことばの実戦", kind: "word", seconds: 60, source: "DAN_WORDS", desc: "60びょうで、ことばをどこまでうてるか。" },
-    { id: "sentence-jissen", label: "文章の実戦", kind: "sentence", seconds: 90, source: "DAN_SENTENCES", desc: "90びょうで、文をうちつづける。" },
-    { id: "shippu", label: "疾風番付", kind: "banzuke", desc: "タイムアタック。スコアで手裏剣のTierがきまる。" },
-    { id: "weak", label: "弱点特訓", kind: "weak", items: 10, source: "DAN_WORDS", desc: "ミスのおおいキーを、しゅうちゅうできたえる。" }
+    { id: "word-jissen", label: "ことばの実戦", kind: "word", seconds: 60, source: "DAN_WORDS", unlockDan: "genin", desc: "60びょうで、ことばをどこまでうてるか。" },
+    { id: "sentence-jissen", label: "文章の実戦", kind: "sentence", seconds: 90, source: "DAN_SENTENCES", unlockDan: "genin", desc: "90びょうで、文をうちつづける。" },
+    { id: "shippu", label: "疾風番付", kind: "banzuke", unlockDan: "genin", desc: "タイムアタック。スコアで手裏剣のTierがきまる。" },
+    { id: "weak", label: "弱点特訓", kind: "weak", items: 10, source: "DAN_WORDS", unlockDan: "genin", desc: "ミスのおおいキーを、しゅうちゅうできたえる。" },
+    { id: "meibun-jissen", label: "名文の実戦", kind: "sentence", seconds: 90, source: "MICHI_ALL", genre: "meibun", unlockDan: "jonin", desc: "90びょうで、めいぶんをうつ。むかしの人のことばを、ゆびでたどる。" },
+    { id: "koten-jissen", label: "古文の実戦", kind: "sentence", seconds: 120, source: "MICHI_ALL", genre: "koten", unlockDan: "jonin", desc: "120びょうで、こてんのめいぶんをうつ。いちばんふるいことばの道。" }
   ],
   banzuke: {
     seconds: 60,

@@ -259,20 +259,24 @@ const NindaApp = globalThis.NindaApp = (function () {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode();
     if (!teacher && (!save.dan || save.dan === "none")) return;
-    const cards = RANK_DATA.jissenMenu.map((menu) => ({
-      id: menu.id,
-      name: menu.label,
-      desc: menu.desc,
-      meta: jissenMeta(menu),
-      run() {
-        if (menu.kind === "banzuke") {
-          openBanzukeCourseMenu();
-          return;
+    const cards = RANK_DATA.jissenMenu.map((menu) => {
+      const unlocked = teacher || danIndex(save.dan) >= danIndex(menu.unlockDan);
+      return {
+        id: menu.id,
+        name: menu.label,
+        desc: menu.desc,
+        meta: unlocked ? jissenMeta(menu) : `${danLabel(menu.unlockDan)}に昇段するとひらく`,
+        locked: !unlocked,
+        run() {
+          if (menu.kind === "banzuke") {
+            openBanzukeCourseMenu();
+            return;
+          }
+          closeMenuModal(false);
+          ExamManager.startJissen(menu.id);
         }
-        closeMenuModal(false);
-        ExamManager.startJissen(menu.id);
-      }
-    }));
+      };
+    });
     const targetDan = nextDanTarget(save);
     if (targetDan && targetDan.exam) {
       cards.push({
