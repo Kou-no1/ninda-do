@@ -2,6 +2,13 @@ const ExamManager = globalThis.ExamManager = (function () {
   "use strict";
 
   let danRun = null;
+  let phaseTimer = null;
+
+  function cancel() {
+    window.clearTimeout(phaseTimer);
+    phaseTimer = null;
+    danRun = null;
+  }
 
   function stageById(stageId) {
     return CURRICULUM_DATA.stages.find((stage) => stage.id === stageId);
@@ -19,9 +26,9 @@ const ExamManager = globalThis.ExamManager = (function () {
     if (stage.exam.kind === "in") {
       const items = [];
       let total = 0;
-      const pool = ref.in || [];
+      const pool = TrainingManager.sample(ref.in || [], (ref.in || []).length);
       while (total < stage.exam.items && pool.length) {
-        const text = pool[items.length % pool.length];
+        const text = pool[items.length % pool.length].slice(0, stage.exam.items - total);
         items.push({ text, kind: "in" });
         total += text.length;
       }
@@ -32,14 +39,12 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function start(stageId) {
+    cancel();
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
-    if (!teacher && save.dan && save.dan !== "none" && stageId === "kyu1") {
-      startDanExam();
-      return;
-    }
     const stage = stageById(stageId);
     if (!stage) return;
+    if (!SaveManager.stageUnlocked(stageId, save)) return;
     if (!teacher && !save.practicedStages.includes(stage.id)) {
       alert(UI_TEXT.noPractice);
       return;
@@ -54,17 +59,14 @@ const ExamManager = globalThis.ExamManager = (function () {
       items,
       guideLevel: stage.type === "nyumon" ? 3 : stage.guideLevelExam,
       mode: "exam",
+      retry() { start(stageId); },
       onComplete(summary, state) {
-        SaveManager.addSessionSummary(stage.id, summary, state.items.length);
-        const passed = summary.accuracy >= stage.exam.accuracy;
+        const passed = summary.correct > 0 && summary.accuracy >= stage.exam.accuracy;
         state.outcome = { passed, requiredAccuracy: stage.exam.accuracy };
         if (passed) {
           const beforeScrolls = SaveManager.ensure().scrolls.slice();
           SaveManager.grantStageClear(stage.id, { acc: summary.accuracy });
           toastNewScrolls(stage, beforeScrolls);
-          if (summary.miss === 0 && globalThis.AchievementManager) AchievementManager.grant("seijaku");
-          if (stage.guideLevelExam === 0 && globalThis.AchievementManager) AchievementManager.grant("kaigan");
-          if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
           if (globalThis.AudioManager) {
             if (stage.id === "kyu1") AudioManager.rankUp();
             else AudioManager.pass();
@@ -72,6 +74,7 @@ const ExamManager = globalThis.ExamManager = (function () {
         } else {
           SaveManager.logEvent("kyu_fail", { id: stage.id, acc: summary.accuracy });
         }
+        if (globalThis.AchievementManager) AchievementManager.checkSession(summary, { exam: true, passed, stageId, guideLevel: stage.guideLevelExam });
       },
       renderResult(summary, state) {
         const missing = Math.max(0, Math.ceil((state.outcome.requiredAccuracy - summary.accuracy) * 100));
@@ -90,6 +93,8 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function startDanExam(targetOverride) {
+    TrainingManager.stop(false);
+    cancel();
     const save = SaveManager.ensure();
     const targetId = targetOverride || nextDanId(save.dan);
     const target = RANK_DATA.dans.find((dan) => dan.id === targetId);
@@ -97,12 +102,17 @@ const ExamManager = globalThis.ExamManager = (function () {
       alert("いまの段位は、これ以上の試しがないよ。");
       return;
     }
-    danRun = { target, phaseIndex: 0, summaries: [], failed: null };
+    if (!SaveManager.isTeacherMode(save) && target.id !== nextDanId(save.dan)) return;
+    if (!SaveManager.isTeacherMode(save) && !save.practicedDans.includes(save.dan)) { alert(UI_TEXT.noPractice); return; }
+    const firstTry = !(save.examAttempts[target.id] || 0);
+    SaveManager.update((data) => { data.examAttempts[target.id] = (data.examAttempts[target.id] || 0) + 1; });
+    danRun = { target, phaseIndex: 0, summaries: [], failed: null, firstTry };
     NindaApp.showScreen("S3");
     startDanPhase();
   }
 
   function startDanPhase() {
+    if (!danRun) return;
     const phases = ["kata", "jissen", "shingan"];
     const phase = phases[danRun.phaseIndex];
     const exam = danRun.target.exam[phase];
@@ -111,13 +121,16 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function phaseConfig(phase, exam, target) {
+    const run = danRun;
     const labels = { kata: "一、型の試し", jissen: "二、実戦の試し", shingan: "三、心眼の試し" };
     const isJissen = phase === "jissen";
     const items = isJissen
-      ? TrainingManager.sample(DAN_SENTENCES.sentences, Math.max(12, Math.ceil(exam.seconds / 6))).map((text) => ({ text, kind: "sentence" }))
+      ? TrainingManager.sample(DAN_SENTENCES.sentences, DAN_SENTENCES.sentences.length).map((text) => ({ text, kind: "sentence" }))
       : TrainingManager.sample(phase === "kata" ? DAN_WORDS.words : shortSentences(), exam.items).map((text) => ({ text, kind: phase === "kata" ? "word" : "sentence" }));
     return {
       screen: "S3",
+      stageId: "dan",
+      recordId: `${target.id}:${phase}`,
       title: `${target.label}への三の試し`,
       phase: labels[phase],
       items,
@@ -125,26 +138,36 @@ const ExamManager = globalThis.ExamManager = (function () {
       mode: isJissen ? "jissen" : "exam",
       seconds: isJissen ? exam.seconds : 0,
       resultActions: phase === "shingan",
+      retry() { startDanExam(target.id); },
+      onCancel: cancel,
       onComplete(summary, state) {
-        const passed = summary.accuracy >= exam.accuracy && (!isJissen || summary.kpm >= exam.kpm);
+        if (danRun !== run) return;
+        const passed = summary.correct > 0 && summary.accuracy >= exam.accuracy && (!isJissen || summary.kpm >= exam.kpm);
         danRun.summaries.push({ phase, summary, passed });
         if (!passed) danRun.failed = { phase, summary, exam };
         state.outcome = { passed, phase, exam, final: false };
         state.config.resultActions = !(passed && phase !== "shingan");
         if (passed && phase !== "shingan") {
-          window.setTimeout(() => {
-            danRun.phaseIndex += 1;
+          phaseTimer = window.setTimeout(() => {
+            if (danRun !== run) return;
+            run.phaseIndex += 1;
             startDanPhase();
           }, 900);
+          if (globalThis.AchievementManager) AchievementManager.checkSession(summary, { phase, passed });
           return;
         }
         if (passed && phase === "shingan") {
           state.outcome.final = true;
           SaveManager.grantDan(target.id, { acc: summary.accuracy, kpm: Math.round(bestKpm(danRun.summaries)) });
+          if (globalThis.AchievementManager) AchievementManager.checkSession(summary, {
+            exam: true, passed: true, dan: true, firstTry: run.firstTry, guideLevel: exam.guideLevel,
+            totalMiss: run.summaries.reduce((sum, item) => sum + item.summary.miss, 0), phase
+          });
           if (globalThis.AudioManager) AudioManager.rankUp();
         } else {
           SaveManager.logEvent("dan_fail", { id: target.id, phase, acc: summary.accuracy, kpm: Math.round(summary.kpm || 0) });
         }
+        if (!passed && globalThis.AchievementManager) AchievementManager.checkSession(summary, { phase, passed: false });
       },
       renderResult(summary, state) {
         const outcome = state.outcome;
@@ -190,6 +213,7 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function startJissen(menuId) {
+    cancel();
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode && SaveManager.isTeacherMode();
     const menu = RANK_DATA.jissenMenu.find((item) => item.id === menuId) || RANK_DATA.jissenMenu[0];
@@ -210,17 +234,17 @@ const ExamManager = globalThis.ExamManager = (function () {
       title: menu.label,
       items,
       guideLevel: 1,
-      mode: "jissen",
+      mode: menu.seconds ? "jissen" : "training",
       seconds: menu.seconds || 0,
+      retry() { startJissen(menu.id); },
       onComplete(summary, state) {
-        SaveManager.addSessionSummary("jissen", summary, state.items.length);
         SaveManager.update((saveData) => {
           if (menu.kind === "timeAttack") saveData.best.shippuScore = Math.max(saveData.best.shippuScore || 0, summary.correct);
         });
         if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
       },
       renderResult(summary) {
-        return `<h2>実戦の記録</h2><p>正確率 ${Math.round(summary.accuracy * 100)}% ／ KPM ${Math.round(summary.kpm)} ／ 気配 ${summary.rhythm}</p>`;
+        return `<h2>実戦の記録</h2>`;
       }
     });
   }
@@ -228,18 +252,13 @@ const ExamManager = globalThis.ExamManager = (function () {
   function buildJissenItems(menu, save) {
     if (menu.kind === "sentence") {
       const source = jissenSource(menu);
-      const count = menu.source === "MICHI_ALL" ? 80 : 18;
-      return TrainingManager.sample(source, count).map((entry) => jissenItem(entry, "sentence")).filter((item) => item.text);
+      return TrainingManager.sample(source, source.length).map((entry) => jissenItem(entry, "sentence")).filter((item) => item.text);
     }
     if (menu.kind === "weak") {
       const weak = MetricsEngine.weakKeys(save.keyStats, 5).map((item) => item.key);
-      const preferred = DAN_WORDS.words.filter((word) => {
-        const romaji = InputEngine.preferredRomaji(word);
-        return weak.some((key) => romaji.includes(key));
-      });
-      return TrainingManager.sample(preferred.length ? preferred : DAN_WORDS.words, menu.items || 10).map((text) => ({ text, kind: "word" }));
+      return TrainingManager.adaptiveItems(DAN_WORDS.words, weak, menu.items || 10, "word");
     }
-    return TrainingManager.sample(DAN_WORDS.words, menu.kind === "timeAttack" ? 30 : 24).map((text) => ({ text, kind: "word" }));
+    return TrainingManager.sample(DAN_WORDS.words, DAN_WORDS.words.length).map((text) => ({ text, kind: "word" }));
   }
 
   function jissenSource(menu) {
@@ -294,22 +313,26 @@ const ExamManager = globalThis.ExamManager = (function () {
   }
 
   function startBanzukeCourse(courseId) {
+    cancel();
     const course = (RANK_DATA.banzuke && RANK_DATA.banzuke.courses || []).find((item) => item.id === courseId);
     const items = buildBanzukeItems(course);
     if (!course || !items.length) {
       alert("この道の語彙は、まだ準備中だよ。");
       return;
     }
+    if (!SaveManager.isTeacherMode() && danIndex(SaveManager.ensure().dan) < danIndex(course.dan)) return;
     TrainingManager.closeModal(false);
     NindaApp.showScreen("S2");
     TrainingManager.startRunner({
       screen: "S2",
       stageId: "banzuke",
+      recordId: course.id,
       title: `疾風番付「${course.label}」`,
       items,
       guideLevel: 1,
       mode: "jissen",
       seconds: RANK_DATA.banzuke.seconds,
+      retry() { startBanzukeCourse(courseId); },
       resultContextAction: {
         id: "courses",
         label: "コースをえらぶ",
@@ -322,7 +345,6 @@ const ExamManager = globalThis.ExamManager = (function () {
         }
       },
       onComplete(summary, state) {
-        SaveManager.addSessionSummary("banzuke", summary, state.items.length);
         const score = banzukeScore(summary);
         const tier = banzukeTier(course.id, score);
         const best = SaveManager.updateBanzukeBest(course.id, { score, tier });
@@ -343,7 +365,7 @@ const ExamManager = globalThis.ExamManager = (function () {
     if (!course) return [];
     const ref = globalThis[course.wordsRef];
     const source = ref && Array.isArray(ref.items) ? ref.items : [];
-    return TrainingManager.sample(source, 80).map((entry) => {
+    return TrainingManager.sample(source, source.length).map((entry) => {
       const item = typeof entry === "string" ? { kana: entry } : entry;
       return {
         text: item.kana,
@@ -386,6 +408,7 @@ const ExamManager = globalThis.ExamManager = (function () {
     buildJissenItems,
     buildBanzukeItems,
     banzukeScore,
-    banzukeTier
+    banzukeTier,
+    cancel
   };
 })();

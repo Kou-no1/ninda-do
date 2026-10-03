@@ -80,5 +80,7 @@ const AudioManager = globalThis.AudioManager = (function () {
     window.speechSynthesis.speak(utterance);
   }
 
-  return { init, correct, miss, shuriken, pass, rankUp, speak };
+  function cancelSpeech() { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); }
+
+  return { init, correct, miss, shuriken, pass, rankUp, speak, cancelSpeech };
 })();

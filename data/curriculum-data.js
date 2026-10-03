@@ -1,4 +1,9 @@
 const CURRICULUM_DATA = globalThis.CURRICULUM_DATA = {
+  review: {
+    label: "にがてキーのふくしゅう",
+    desc: "ならったキーだけで、にがてをゆっくりおさらいする。",
+    counts: { in: 10, word: 10, sentence: 3 }
+  },
   stages: [
     {
       id: "nyumon1", label: "入門・壱", type: "nyumon", title: "中段の文字",

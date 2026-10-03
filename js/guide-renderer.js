@@ -25,11 +25,10 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     const expected = new Set(expectedKeys);
     return `<div class="keyboard" aria-label="画面キーボード">${ROWS.map((row) => {
       return `<div class="key-row">${row.map((key) => {
-        const info = FINGER_DATA.keys[key];
         const color = keyColor(key) || "var(--line)";
         const next = expected.has(key) ? " next" : "";
         const label = key === ";" ? ";" : key;
-        return `<div class="key${next}" style="border-color:${next ? color : "var(--line)"}">${label}</div>`;
+        return `<div class="key${next}" data-key="${key}" style="border-color:${color}">${label}</div>`;
       }).join("")}</div>`;
     }).join("")}</div>`;
   }

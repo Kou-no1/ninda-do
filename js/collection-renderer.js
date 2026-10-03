@@ -5,6 +5,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
   let versionTapCount = 0;
   let versionTapTimer = null;
   let teacherFailCount = 0;
+  const observations = new Set();
 
   function initTabs() {
     document.querySelectorAll("[data-collection-tab]").forEach((button) => {
@@ -182,15 +183,30 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <button id="makePasscode">合言葉コードを出す</button>
         <output id="passcodeOutput"></output>
         <p class="hint">うちこみの記録はもどらないよ。</p>
-      </div>`;
+      </div>
+      ${growthRecordsHtml(save)}`;
     renderPrintLicense(save);
     document.getElementById("printLicenseButton").addEventListener("click", () => {
+      document.getElementById("printLicense").removeAttribute("data-print-mode");
       renderPrintLicense(SaveManager.ensure());
       window.print();
     });
     document.getElementById("makePasscode").addEventListener("click", () => {
       document.getElementById("passcodeOutput").textContent = SaveManager.exportCode();
     });
+  }
+
+  function growthRecordsHtml(save) {
+    const entries = save.eventLog.filter((entry) => entry.type === "session_end" && entry.completed).slice(-8).reverse();
+    const text = UI_TEXT.growth;
+    return `<section class="growth-records"><h2>${escapeHtml(text.title)}</h2>${entries.length
+      ? `<div class="table-scroll"><table><thead><tr>${[text.date, text.stage, text.accuracy, text.rhythm, text.combo].map((label) => `<th scope="col">${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>
+        ${entries.map((entry) => {
+          const stage = CURRICULUM_DATA.stages.find((item) => item.id === entry.id);
+          const course = RANK_DATA.banzuke.courses.find((item) => item.id === entry.id);
+          const label = stage ? stage.label : course ? course.label : entry.id && entry.id.includes(":") ? "三の試し" : "実戦";
+          return `<tr><td>${escapeHtml(new Date(entry.ts).toLocaleDateString("ja-JP"))}</td><td>${escapeHtml(label)}</td><td>${Math.round((entry.acc || 0) * 100)}%</td><td>${escapeHtml(entry.rhythm || "—")}</td><td>${numberText(entry.maxCombo)}</td></tr>`;
+        }).join("")}</tbody></table></div>` : `<p>${escapeHtml(text.empty)}</p>`}</section>`;
   }
 
   function rankLabel(save) {
@@ -266,6 +282,17 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       <div class="teacher-menu">
         <a href="poster.html" target="_blank" rel="noopener">せんせいメニュー: ゆびのいろポスターをひらく</a>
       </div>
+      <details class="observation-tools"><summary>${UI_TEXT.observation.title}</summary>
+        <p>${UI_TEXT.observation.note}</p>
+        ${FINGER_DATA.observations.map((item) => `<label class="setting-row"><input type="checkbox" data-observation="${item.id}" ${observations.has(item.id) ? "checked" : ""}>${escapeHtml(item.label)}</label>`).join("")}
+        <button type="button" id="printObservationButton">${UI_TEXT.observation.print}</button>
+      </details>
+      <div class="backup-tools">
+        <h2>${UI_TEXT.backup.title}</h2>
+        <div class="button-row"><button type="button" id="exportBackupButton">${UI_TEXT.backup.export}</button><button type="button" id="importBackupButton">${UI_TEXT.backup.import}</button></div>
+        <input type="file" id="backupFileInput" accept=".json,application/json" hidden>
+        <p id="backupMessage" role="status" class="hint">${escapeHtml(SaveManager.storageStatus().warning)}</p>
+      </div>
       <div class="restore-box">
         <label for="restoreCode">合言葉コードで復元</label>
         <textarea id="restoreCode" rows="3" placeholder="かきのはす-..."></textarea>
@@ -281,7 +308,10 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       <p id="versionLabel" class="version-label" tabindex="0">忍打道 —NINDA DO— v${APP_VERSION}</p>
       <div id="teacherUnlockMount" class="teacher-unlock" hidden></div>`;
     document.getElementById("seSetting").addEventListener("change", (event) => SaveManager.setSetting("se", event.target.checked));
-    document.getElementById("voiceSetting").addEventListener("change", (event) => SaveManager.setSetting("voice", event.target.checked));
+    document.getElementById("voiceSetting").addEventListener("change", (event) => {
+      SaveManager.setSetting("voice", event.target.checked);
+      if (!event.target.checked && AudioManager.cancelSpeech) AudioManager.cancelSpeech();
+    });
     document.getElementById("displaySetting").addEventListener("change", (event) => {
       SaveManager.setSetting("display", event.target.checked ? "light" : "night");
       if (globalThis.NindaApp) NindaApp.applyTheme();
@@ -296,12 +326,21 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       });
     }
     wireTeacherUnlock();
+    wireBackup();
+    mount.querySelectorAll("[data-observation]").forEach((input) => input.addEventListener("change", () => {
+      if (input.checked) observations.add(input.dataset.observation);
+      else observations.delete(input.dataset.observation);
+    }));
+    document.getElementById("printObservationButton").addEventListener("click", printObservation);
     document.getElementById("restoreButton").addEventListener("click", () => {
       const message = document.getElementById("restoreMessage");
       try {
+        if (!confirm(UI_TEXT.backup.warning)) return;
         SaveManager.restoreCode(document.getElementById("restoreCode").value);
-        message.textContent = "復元したよ。";
-        if (globalThis.NindaApp) NindaApp.renderHome();
+        NindaApp.applyTheme();
+        NindaApp.renderHome();
+        renderSettings();
+        document.getElementById("restoreMessage").textContent = "復元したよ。";
       } catch (error) {
         message.textContent = error.message || "あいことばが ちがうみたい";
       }
@@ -310,9 +349,82 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       document.getElementById("deleteStep2").hidden = false;
     });
     document.getElementById("deleteStep2").addEventListener("click", () => {
+      if (SaveManager.isTeacherMode()) {
+        showToast("先生モードをOFFにしてから、消してね。");
+        return;
+      }
       SaveManager.reset();
       if (globalThis.NindaApp) NindaApp.showScreen("S0");
     });
+  }
+
+  function wireBackup() {
+    const fileInput = document.getElementById("backupFileInput");
+    document.getElementById("exportBackupButton").addEventListener("click", () => {
+      const url = URL.createObjectURL(new Blob([SaveManager.exportBackup()], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ninda-do-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    document.getElementById("importBackupButton").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { document.getElementById("backupMessage").textContent = UI_TEXT.backup.error; return; }
+      const reader = new FileReader();
+      reader.onload = () => previewBackup(String(reader.result));
+      reader.onerror = () => { document.getElementById("backupMessage").textContent = UI_TEXT.backup.error; };
+      reader.readAsText(file);
+      fileInput.value = "";
+    });
+  }
+
+  function previewBackup(text) {
+    const message = document.getElementById("backupMessage");
+    try {
+      if (SaveManager.isTeacherMode()) throw new Error("先生モードをOFFにしてから、もどしてね");
+      const incoming = SaveManager.parseBackup(text);
+      const current = SaveManager.ensure();
+      const rows = [
+        ["にんじゃネーム", current.name, incoming.name], ["段位", rankLabel(current), rankLabel(incoming)],
+        ["正打", current.totals.correct, incoming.totals.correct], ["巻物", current.scrolls.length, incoming.scrolls.length],
+        ["二つ名", current.nicknames.length, incoming.nicknames.length], ["最大連撃", current.best.combo, incoming.best.combo],
+        ["疾風番付", bestBanzukeLabel(current), bestBanzukeLabel(incoming)], ["キーの記録", Object.keys(current.keyStats).length, Object.keys(incoming.keyStats).length]
+      ];
+      TrainingManager.openModal({
+        title: UI_TEXT.backup.compare,
+        bodyHtml: `<p>${UI_TEXT.backup.warning}</p><table class="backup-diff"><thead><tr><th>記録</th><th>今</th><th>ファイル</th></tr></thead><tbody>${rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
+        defaultActionId: "cancel", escapeActionId: "cancel",
+        actions: [
+          { id: "restore", label: UI_TEXT.backup.confirm, run() {
+            try {
+              SaveManager.restoreBackup(text);
+              TrainingManager.closeModal(false);
+              NindaApp.applyTheme(); NindaApp.renderHome(); renderSettings();
+              document.getElementById("backupMessage").textContent = UI_TEXT.backup.saved;
+              document.getElementById("importBackupButton").focus();
+            } catch (error) { message.textContent = error.message; }
+          } },
+          { id: "cancel", label: UI_TEXT.backup.cancel, run() { TrainingManager.closeModal(true); } }
+        ]
+      });
+    } catch (error) { message.textContent = error.message || UI_TEXT.backup.error; }
+  }
+
+  function printObservation() {
+    const mount = document.getElementById("printLicense");
+    mount.dataset.printMode = "observation";
+    mount.innerHTML = `<article class="print-observation"><h1>${UI_TEXT.observation.title}</h1>
+      <p>${escapeHtml(SaveManager.ensure().name)} ／ ${escapeHtml(new Date().toLocaleDateString("ja-JP"))}</p>
+      <p>${UI_TEXT.observation.note}</p><ul>${FINGER_DATA.observations.map((item) => `<li>${observations.has(item.id) ? "☑" : "□"} ${escapeHtml(item.label)}</li>`).join("")}</ul>
+      <h2>先生のメモ</h2><div class="observation-memo"></div><p>キーの里 忍打道場</p></article>`;
+    window.print();
+    mount.removeAttribute("data-print-mode");
+    renderPrintLicense(SaveManager.ensure());
   }
 
   function wireTeacherUnlock() {
@@ -432,6 +544,7 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
   return {
     render,
     renderLicense,
-    renderSettings
+    renderSettings,
+    previewBackup
   };
 })();

@@ -1,4 +1,4 @@
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -34,7 +34,11 @@ const UI_TEXT = globalThis.UI_TEXT = {
     hiddenDesc: "まだ、その名を知らぬ",
     revealToast: "あらたな影が、道の先に見えた"
   },
-  kanjiDisplaySetting: "かんじで ひょうじ（ふりがなつき）"
+  kanjiDisplaySetting: "かんじで ひょうじ（ふりがなつき）",
+  returnFrontier: "つづきの修行",
+  backup: { title: "ぜんぶの記録をバックアップ", export: "バックアップをとる", import: "ファイルからもどす", compare: "もどす前にかくにん", confirm: "この記録にもどす", cancel: "やめる", warning: "今の記録は、このファイルの記録に入れかわるよ。", saved: "記録をもどしたよ。", error: "ファイルをよめません。忍打道のバックアップをえらんでね。" },
+  observation: { title: "先生の運指かくにん表", note: "アプリがわかるのは、キーの正しさです。指のつかい方は、先生が目でかくにんします。このチェックは児童の進み具合に保存しません。", print: "かくにん表をいんさつする" },
+  growth: { title: "修行のあゆみ", empty: "修行をおえると、ここに記録がのこるよ。", date: "日", stage: "修行", accuracy: "正確率", rhythm: "気配", combo: "最大連撃", compare: "まえの自分とくらべる", points: "ポイント", improved: "よくなったキー" }
 };
 
 const NindaApp = globalThis.NindaApp = (function () {
@@ -73,7 +77,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     });
     document.querySelectorAll(".backHome").forEach((button) => {
       button.addEventListener("click", () => {
-        if (!TrainingManager.isActive() || confirm("修行をやめて、さとにもどる？")) {
+        if (!TrainingManager.hasSession() || confirm("修行をやめて、さとにもどる？")) {
           TrainingManager.stop(true);
         }
       });
@@ -93,6 +97,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       openStageMenu(currentStage().id);
     });
     byId("jissenButton").addEventListener("click", openJissenMenu);
+    byId("frontierButton").addEventListener("click", () => openStageMenu(SaveManager.ensure().unlockedStage));
   }
 
   function wireEntry() {
@@ -174,7 +179,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       if (resultOverlay && !resultOverlay.hidden) return;
       const menuOverlay = byId("menuOverlay");
       if (menuOverlay && !menuOverlay.hidden) return;
-      if ((currentScreen === "S2" || currentScreen === "S3") && TrainingManager.isActive()) {
+      if ((currentScreen === "S2" || currentScreen === "S3") && TrainingManager.hasSession()) {
         event.preventDefault();
         if (confirm("修行をやめて、さとにもどる？")) TrainingManager.stop(true);
       }
@@ -193,7 +198,9 @@ const NindaApp = globalThis.NindaApp = (function () {
     if (id === "S5" && CollectionRenderer.renderLicense) CollectionRenderer.renderLicense();
     if (id === "S6" && CollectionRenderer.renderSettings) CollectionRenderer.renderSettings();
     const firstButton = byId(id) && byId(id).querySelector("button, input");
-    if (firstButton) window.setTimeout(() => firstButton.focus(), 0);
+    if (firstButton) window.setTimeout(() => {
+      if (currentScreen === id && byId("resultOverlay").hidden && byId("menuOverlay").hidden && byId("imeOverlay").hidden) firstButton.focus();
+    }, 0);
   }
 
   function currentStage() {
@@ -223,6 +230,11 @@ const NindaApp = globalThis.NindaApp = (function () {
     byId("examButton").title = "";
     byId("jissenButton").hidden = !teacher && save.dan === "none";
     byId("jissenButton").innerHTML = UI_TEXT.menuJissen;
+    byId("frontierButton").hidden = teacher || stage.id === save.unlockedStage || save.dan !== "none";
+    byId("frontierButton").textContent = UI_TEXT.returnFrontier;
+    const warning = byId("storageWarning");
+    warning.textContent = SaveManager.storageStatus().warning;
+    warning.hidden = !warning.textContent;
     renderMap(save, teacherDan ? "" : stage.id);
   }
 
@@ -230,6 +242,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode();
     const stage = CURRICULUM_DATA.stages.find((item) => item.id === stageId) || currentStage();
+    if (!SaveManager.stageUnlocked(stage.id, save)) return;
     const cards = (stage.training || []).map((entry, index) => ({
       id: `training-${index}`,
       name: entry.label,
@@ -240,6 +253,11 @@ const NindaApp = globalThis.NindaApp = (function () {
         TrainingManager.start(stage.id, index);
       }
     }));
+    if (stage.type === "kyu") cards.push({
+      id: "review", name: CURRICULUM_DATA.review.label, desc: CURRICULUM_DATA.review.desc,
+      meta: trainingMeta(stage, { kind: stage.training[stage.training.length - 1].kind, count: CURRICULUM_DATA.review.counts[stage.training[stage.training.length - 1].kind] }),
+      run() { closeMenuModal(false); TrainingManager.start(stage.id, "review"); }
+    });
     const examLocked = !teacher && !save.practicedStages.includes(stage.id);
     cards.push({
       id: "exam",
@@ -283,11 +301,13 @@ const NindaApp = globalThis.NindaApp = (function () {
     });
     const targetDan = nextDanTarget(save);
     if (targetDan && targetDan.exam) {
+      const locked = !teacher && !save.practicedDans.includes(save.dan);
       cards.push({
         id: "dan-exam",
         name: "三の試し",
         desc: targetDan.exam.desc,
-        meta: danExamMeta(targetDan.exam),
+        meta: locked ? UI_TEXT.lockedPractice : danExamMeta(targetDan.exam),
+        locked,
         run() {
           closeMenuModal(false);
           ExamManager.startDanExam(targetDan.id);
@@ -497,12 +517,10 @@ const NindaApp = globalThis.NindaApp = (function () {
     const map = byId("mapMount");
     if (!map) return;
     const teacher = SaveManager.isTeacherMode();
-    const currentIndex = CURRICULUM_DATA.stages.findIndex((item) => item.id === currentStageId);
-    const stageNodes = CURRICULUM_DATA.stages.map((stage, index) => {
+    const stageNodes = CURRICULUM_DATA.stages.map((stage) => {
       const cleared = save.clearedStages.includes(stage.id);
       const current = stage.id === currentStageId;
-      const alwaysOpen = stage.type === "nyumon";
-      const normallyAvailable = alwaysOpen || cleared || current || index <= currentIndex;
+      const normallyAvailable = SaveManager.stageUnlocked(stage.id, Object.assign({}, save, { settings: Object.assign({}, save.settings, { teacherMode: false }) }));
       const available = teacher || normallyAvailable;
       return { type: stage.type, html: `<button class="map-node ${cleared ? "cleared" : ""} ${current ? "current" : ""} ${teacher && !normallyAvailable ? "teacher-open" : ""}" data-stage-id="${stage.id}" ${available ? "" : "disabled"}>
         <span class="node-icon">${current ? SVG_ICONS.lantern() : stage.type === "nyumon" ? SVG_ICONS.torii() : SVG_ICONS.scroll(stage.jutsu[0] || "stage", !cleared)}</span>
@@ -597,7 +615,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       const dan = RANK_DATA.dans.find((item) => item.id === save.dan);
       return dan ? dan.label : "下忍";
     }
-    const stage = currentStage();
+    const stage = CURRICULUM_DATA.stages.find((item) => item.id === save.unlockedStage) || currentStage();
     return stage.label;
   }
 

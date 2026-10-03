@@ -11,22 +11,32 @@ const AchievementManager = globalThis.AchievementManager = (function () {
     return true;
   }
 
-  function checkSession(summary) {
+  const evaluators = {
+    stage_clear: (cond, save) => save.clearedStages.includes(cond.id),
+    exam_nomiss: (cond, save, summary, context) => context.exam && context.passed && (context.totalMiss ?? summary.miss) === 0,
+    first_pass_guide0: (cond, save, summary, context) => context.exam && context.passed && context.guideLevel === 0,
+    dan_first_try: (cond, save, summary, context) => context.dan && context.passed && context.firstTry,
+    exam_perfect: (cond, save, summary, context) => context.phase === "kata" && context.passed && summary.accuracy === 1,
+    total_correct: (cond, save) => save.totals.correct >= cond.value,
+    streak: (cond, save) => save.streak.days >= cond.value,
+    rhythm_hold: (cond, save, summary, context) => !context.exam && !context.phase && ["training", "jissen"].includes(summary.mode) && summary.correct >= 30 && summary.fudoRate >= 0.8,
+    kpm_reach: (cond, save, summary) => summary.mode === "jissen" && summary.elapsedSeconds >= 10 && summary.kpm >= cond.value,
+    combo_reach: (cond, save, summary) => summary.maxCombo >= cond.n,
+    tier_reach: (cond, save) => tierReach(save, cond.tier),
+    tier_all: (cond, save) => tierAll(save, cond.tier),
+    weak_key_master: (cond, save) => weakMaster(save),
+    all_scrolls: (cond, save) => JUTSU_DATA.every((jutsu) => save.scrolls.includes(jutsu.id))
+  };
+
+  function checkSession(summary, context) {
     if (SaveManager.isTeacherMode && SaveManager.isTeacherMode()) return;
     const save = SaveManager.load();
     if (!save) return;
     NICKNAME_DATA.forEach((item) => {
       if (save.nicknames.includes(item.id)) return;
       const cond = item.cond;
-      if (cond.type === "total_correct" && save.totals.correct >= cond.value) grant(item.id);
-      if (cond.type === "streak" && save.streak.days >= cond.value) grant(item.id);
-      if (cond.type === "rhythm_hold" && summary.correct >= 30 && summary.fudoRate >= 0.8) grant(item.id);
-      if (cond.type === "kpm_reach" && summary.bestKpm >= cond.value) grant(item.id);
-      if (cond.type === "combo_reach" && summary.maxCombo >= cond.n) grant(item.id);
-      if (cond.type === "tier_reach" && tierReach(save, cond.tier)) grant(item.id);
-      if (cond.type === "tier_all" && tierAll(save, cond.tier)) grant(item.id);
-      if (cond.type === "weak_key_master" && weakMaster(save)) grant(item.id);
-      if (cond.type === "all_scrolls" && JUTSU_DATA.every((jutsu) => save.scrolls.includes(jutsu.id))) grant(item.id);
+      const evaluate = evaluators[cond.type];
+      if (evaluate && evaluate(cond, save, summary || {}, context || {})) grant(item.id);
     });
   }
 
@@ -46,8 +56,8 @@ const AchievementManager = globalThis.AchievementManager = (function () {
   }
 
   function weakMaster(save) {
-    return MetricsEngine.weakKeys(save.keyStats, 5).some((item) => {
-      const stat = save.keyStats[item.key];
+    return (save.weakTargets || []).some((key) => {
+      const stat = save.keyStats[key];
       return stat && stat.recent && stat.recent.length >= 20 && MetricsEngine.recentAccuracy(stat) >= 0.9;
     });
   }
@@ -74,6 +84,7 @@ const AchievementManager = globalThis.AchievementManager = (function () {
     grant,
     checkSession,
     toastScroll,
-    toast
+    toast,
+    supportedTypes: Object.keys(evaluators)
   };
 })();

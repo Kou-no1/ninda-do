@@ -29,7 +29,8 @@ const FILES = [
   "data/words/michi-jonin.js",
   "data/words/michi-tokujonin.js",
   "data/words/michi-kage.js",
-  "js/input-engine.js"
+  "js/input-engine.js",
+  "js/achievement-manager.js"
 ];
 
 const context = vm.createContext({ console, globalThis: {} });
@@ -167,6 +168,7 @@ function checkMichiQuality(course, ref) {
 }
 
 for (const stage of STAGES) {
+  ok([0, 1, 2, 3].includes(stage.guideLevelTraining) && [0, 1, 2, 3].includes(stage.guideLevelExam), `NG [${stage.id}] guideLevel は0〜3です`);
   ok(wordRef(stage.wordsRef), `NG [${stage.id}] wordsRef ${stage.wordsRef} が存在しません`);
   for (const jutsu of stage.jutsu) ok(jutsuIds.has(jutsu), `NG [${stage.id}] jutsu ${jutsu} が存在しません`);
   for (const key of stage.newKeys) ok(FINGER_DATA.keys[key], `NG [${stage.id}] newKey ${key} が FINGER_DATA にありません`);
@@ -241,18 +243,16 @@ ok(genreCounts.kotowaza === 9, `NG [genre:kotowaza] 9本必要です（現在 ${
 ok(genreCounts.meibun === 15, `NG [genre:meibun] 15本必要です（現在 ${genreCounts.meibun} 本）`);
 ok(genreCounts.koten === 12, `NG [genre:koten] 12本必要です（現在 ${genreCounts.koten} 本）`);
 
-const validNicknameCondTypes = new Set([
-  "stage_clear", "exam_nomiss", "rhythm_hold", "first_pass_guide0",
-  "total_correct", "streak", "dan_first_try", "weak_key_master",
-  "kpm_reach", "all_scrolls", "exam_perfect", "combo_reach",
-  "tier_reach", "tier_all"
-]);
+const validNicknameCondTypes = new Set(context.AchievementManager.supportedTypes);
 for (const item of NICKNAME_DATA) {
   ok(item.id && item.name && item.cond && item.cond.type, `NG [nickname] ${item.id}: 定義が不足しています`);
   ok(validNicknameCondTypes.has(item.cond.type), `NG [nickname:${item.id}] cond.type ${item.cond.type} の評価器がありません`);
   if (item.cond.id) ok(stageIds.has(item.cond.id), `NG [nickname:${item.id}] cond.id ${item.cond.id} が存在しません`);
 }
 ok(nicknameIds.size === NICKNAME_DATA.length, "NG [nickname] id が重複しています");
+ok(CURRICULUM_DATA.review && CURRICULUM_DATA.review.label && CURRICULUM_DATA.review.desc, "NG [review] 復習メニューの定義がありません");
+for (const kind of ["in", "word", "sentence"]) ok(Number.isInteger(CURRICULUM_DATA.review.counts[kind]) && CURRICULUM_DATA.review.counts[kind] > 0, `NG [review:${kind}] count が不正です`);
+ok(Array.isArray(FINGER_DATA.observations) && FINGER_DATA.observations.length > 0 && FINGER_DATA.observations.every((item) => item.id && item.label), "NG [observations] 観察項目が不足しています");
 
 const validDanIds = new Set(RANK_DATA.dans.map((dan) => dan.id));
 const michiAllItems = Object.values(michiRefs).flatMap((ref) => ref && Array.isArray(ref.items) ? ref.items : []);

@@ -6,6 +6,9 @@ const SaveManager = globalThis.SaveManager = (function () {
   const CODE_ALPHABET = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみ";
   const memoryStorage = {};
   let syncAdapter = null;
+  let memoryOnly = false;
+  let storageWarning = "";
+  let loadFailed = false;
 
   function now() {
     return Date.now();
@@ -26,7 +29,9 @@ const SaveManager = globalThis.SaveManager = (function () {
       name: sanitizeName(name || "しのびまる"),
       createdAt: now(),
       currentStage: startStage || "nyumon1",
+      unlockedStage: startStage || "nyumon1",
       practicedStages: [],
+      practicedDans: [],
       clearedStages: [],
       dan: "none",
       scrolls: [],
@@ -34,6 +39,8 @@ const SaveManager = globalThis.SaveManager = (function () {
       equippedNickname: "",
       totals: { keys: 0, correct: 0, miss: 0, words: 0 },
       keyStats: {},
+      examAttempts: {},
+      weakTargets: [],
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {} },
       streak: { last: "", days: 0 },
       settings: { se: true, voice: true, display: "night", teacherMode: false, kanjiDisplay: true },
@@ -50,35 +57,74 @@ const SaveManager = globalThis.SaveManager = (function () {
     try {
       const raw = storageGet(STORAGE_KEY);
       if (!raw) return null;
-      return normalize(JSON.parse(raw));
+      const data = normalize(JSON.parse(raw));
+      loadFailed = false;
+      return data;
     } catch (error) {
+      storageWarning = "記録をよめません。バックアップからもどすか、あいことばをつかってね。";
+      loadFailed = true;
       console.warn("SaveManager.load failed", error);
       return null;
     }
   }
 
   function normalize(save) {
+    if (!save || typeof save !== "object" || Array.isArray(save) || save.v !== 1) throw new Error("セーブの形式がちがいます");
     const base = defaultSave(save && save.name, save && save.currentStage);
     const defaultTotals = Object.assign({}, base.totals);
     const defaultBest = Object.assign({}, base.best);
     const defaultSettings = Object.assign({}, base.settings);
     const defaultStreak = Object.assign({}, base.streak);
     const merged = Object.assign(base, save || {});
-    merged.totals = Object.assign(defaultTotals, save && save.totals || {});
-    merged.best = Object.assign(defaultBest, save && save.best || {});
+    merged.totals = Object.assign({}, defaultTotals, save && save.totals || {});
+    merged.best = Object.assign({}, defaultBest, save && save.best || {});
     merged.best.banzuke = Object.assign({}, defaultBest.banzuke, save && save.best && save.best.banzuke || {});
-    merged.settings = Object.assign(defaultSettings, save && save.settings || {});
-    merged.streak = Object.assign(defaultStreak, save && save.streak || {});
+    merged.settings = Object.assign({}, defaultSettings, save && save.settings || {});
+    merged.streak = Object.assign({}, defaultStreak, save && save.streak || {});
     merged.eventLog = Array.isArray(merged.eventLog) ? merged.eventLog.slice(-200) : [];
     merged.practicedStages = Array.isArray(merged.practicedStages) ? merged.practicedStages : [];
+    merged.practicedDans = Array.isArray(merged.practicedDans) ? merged.practicedDans.filter((id) => DAN_ORDER.includes(id) && id !== "none") : [];
     merged.clearedStages = Array.isArray(merged.clearedStages) ? merged.clearedStages : [];
     merged.scrolls = Array.isArray(merged.scrolls) ? merged.scrolls : [];
     merged.nicknames = Array.isArray(merged.nicknames) ? merged.nicknames : [];
     merged.keyStats = merged.keyStats || {};
+    const stageIds = CURRICULUM_DATA.stages.map((stage) => stage.id);
+    const number = (value) => Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+    merged.name = sanitizeName(merged.name);
+    merged.createdAt = number(merged.createdAt) || now();
+    merged.currentStage = stageIds.includes(merged.currentStage) ? merged.currentStage : "nyumon1";
+    ["practicedStages", "clearedStages"].forEach((key) => { merged[key] = [...new Set(merged[key].filter((id) => stageIds.includes(id)))]; });
+    merged.scrolls = [...new Set(merged.scrolls.filter((id) => JUTSU_DATA.some((item) => item.id === id)))];
+    merged.nicknames = [...new Set(merged.nicknames.filter((id) => NICKNAME_DATA.some((item) => item.id === id)))];
+    merged.equippedNickname = merged.nicknames.includes(merged.equippedNickname) ? merged.equippedNickname : "";
+    merged.dan = DAN_ORDER.includes(merged.dan) ? merged.dan : "none";
+    if (!Array.isArray(save.practicedDans) && merged.dan !== "none" && Array.isArray(save.practicedStages)
+      && save.practicedStages.some((id) => ["jissen", "banzuke"].includes(id))) addUnique(merged.practicedDans, merged.dan);
+    const frontier = [merged.currentStage, merged.unlockedStage, ...merged.practicedStages, ...merged.clearedStages.map(nextStageId)]
+      .filter((id) => stageIds.includes(id)).sort((a, b) => stageIds.indexOf(b) - stageIds.indexOf(a))[0];
+    merged.unlockedStage = frontier || merged.currentStage;
+    Object.keys(defaultTotals).forEach((key) => { merged.totals[key] = number(merged.totals[key]); });
+    ["shippuScore", "kpm", "combo"].forEach((key) => { merged.best[key] = number(merged.best[key]); });
+    merged.best.rhythm = ["—", "乱", "並", "静", "不動"].includes(merged.best.rhythm) ? merged.best.rhythm : "—";
+    merged.best.banzuke = Object.fromEntries(Object.entries(merged.best.banzuke).filter(([id, record]) =>
+      RANK_DATA.banzuke.courses.some((course) => course.id === id) && record && Number.isFinite(record.score) && record.score >= 0
+      && RANK_DATA.banzuke.tierOrder.includes(record.tier) && /^\d{4}-\d{2}-\d{2}$/.test(record.date || "")));
+    merged.settings.display = merged.settings.display === "light" ? "light" : "night";
+    ["se", "voice", "teacherMode", "kanjiDisplay"].forEach((key) => { merged.settings[key] = typeof merged.settings[key] === "boolean" ? merged.settings[key] : defaultSettings[key]; });
+    merged.streak = { last: /^\d{4}-\d{2}-\d{2}$/.test(merged.streak.last || "") ? merged.streak.last : "", days: number(merged.streak.days) };
+    merged.keyStats = Object.fromEntries(Object.entries(merged.keyStats).filter(([key, stat]) => FINGER_DATA.keys[key] && stat && typeof stat === "object")
+      .map(([key, stat]) => [key, { attempts: number(stat.attempts), misses: Math.min(number(stat.misses), number(stat.attempts)), sumLatency: number(stat.sumLatency), recent: Array.isArray(stat.recent) ? stat.recent.filter((hit) => typeof hit === "boolean").slice(-20) : [] }]));
+    merged.examAttempts = Object.fromEntries(Object.entries(save.examAttempts || {}).filter(([id]) => DAN_ORDER.includes(id)).map(([id, count]) => [id, number(count)]));
+    merged.weakTargets = Array.isArray(save.weakTargets) ? [...new Set(save.weakTargets.filter((key) => FINGER_DATA.keys[key]))] : [];
+    merged.eventLog = merged.eventLog.filter((entry) => entry && Number.isFinite(entry.ts) && typeof entry.type === "string");
     return merged;
   }
 
-  function save(next) {
+  function save(next, options) {
+    const current = load();
+    if (isTeacherMode(current) && !(options && options.allowTeacherWrite)) return current;
+    if (isTeacherMode(current)) next = Object.assign({}, current, { settings: next.settings });
+    if (options && options.restore) memoryOnly = false;
     storageSet(STORAGE_KEY, JSON.stringify(normalize(next)));
     return next;
   }
@@ -86,15 +132,14 @@ const SaveManager = globalThis.SaveManager = (function () {
   function ensure(name, startStage) {
     const existing = load();
     if (existing) return existing;
+    if (loadFailed) memoryOnly = true;
     const created = defaultSave(name, startStage);
-    updateStreak(created);
     return save(created);
   }
 
   function create(name, startStage) {
     const created = defaultSave(name, startStage);
-    updateStreak(created);
-    return save(created);
+    return save(created, { restore: true });
   }
 
   function isTeacherMode(saveData) {
@@ -106,7 +151,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     const current = ensure();
     if (isTeacherMode(current) && !(options && options.allowTeacherWrite)) return current;
     mutator(current);
-    return save(current);
+    return save(current, options);
   }
 
   function addUnique(list, id) {
@@ -115,14 +160,28 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function logEvent(type, data) {
     return update((saveData) => {
-      const entry = Object.assign({ ts: now(), type }, data || {});
-      saveData.eventLog.push(entry);
-      saveData.eventLog = saveData.eventLog.slice(-200);
-      if (syncAdapter && typeof syncAdapter.onEvent === "function") syncAdapter.onEvent(entry);
+      appendEvent(saveData, type, data);
     });
   }
 
+  function appendEvent(saveData, type, data) {
+    const entry = Object.assign({}, data || {}, { ts: now(), type });
+    saveData.eventLog.push(entry);
+    saveData.eventLog = saveData.eventLog.slice(-200);
+    if (syncAdapter && typeof syncAdapter.onEvent === "function") {
+      try { Promise.resolve(syncAdapter.onEvent(JSON.parse(JSON.stringify(entry)))).catch((error) => console.warn("syncAdapter.onEvent failed", error)); }
+      catch (error) { console.warn("syncAdapter.onEvent failed", error); }
+    }
+  }
+
+  function flush() {
+    if (!syncAdapter || typeof syncAdapter.flush !== "function") return;
+    try { Promise.resolve(syncAdapter.flush()).catch((error) => console.warn("syncAdapter.flush failed", error)); }
+    catch (error) { console.warn("syncAdapter.flush failed", error); }
+  }
+
   function updateStreak(saveData) {
+    if (isTeacherMode(saveData)) return saveData.streak.days;
     const today = todayJst();
     if (saveData.streak.last === today) return saveData.streak.days;
     saveData.streak.days = saveData.streak.last === yesterdayJst() ? saveData.streak.days + 1 : 1;
@@ -132,12 +191,14 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function markPracticed(stageId) {
     return update((saveData) => {
-      addUnique(saveData.practicedStages, stageId);
+      if (DAN_ORDER.includes(stageId) && stageId !== "none") addUnique(saveData.practicedDans, stageId);
+      else if (CURRICULUM_DATA.stages.some((stage) => stage.id === stageId)) addUnique(saveData.practicedStages, stageId);
       updateStreak(saveData);
     });
   }
 
   function mergeKeyStats(saveData, stats) {
+    if (isTeacherMode(saveData)) return;
     for (const [key, value] of Object.entries(stats || {})) {
       if (!saveData.keyStats[key]) saveData.keyStats[key] = { attempts: 0, misses: 0, sumLatency: 0, recent: [] };
       saveData.keyStats[key].attempts += value.attempts || 0;
@@ -147,18 +208,22 @@ const SaveManager = globalThis.SaveManager = (function () {
     }
   }
 
-  function addSessionSummary(stageId, summary, itemCount) {
+  function addSessionSummary(stageId, summary, itemCount, options) {
     return update((saveData) => {
       saveData.totals.keys += summary.correct + summary.miss;
       saveData.totals.correct += summary.correct;
       saveData.totals.miss += summary.miss;
       saveData.totals.words += itemCount || 0;
-      if (summary.kpm) saveData.best.kpm = Math.max(saveData.best.kpm || 0, Math.round(summary.kpm));
+      if (!(options && options.partial) && summary.mode === "jissen" && summary.kpm) saveData.best.kpm = Math.max(saveData.best.kpm || 0, Math.round(summary.kpm));
       if (summary.rhythm && summary.rhythm !== "—") saveData.best.rhythm = betterRhythm(saveData.best.rhythm, summary.rhythm);
       if (summary.maxCombo) saveData.best.combo = Math.max(saveData.best.combo || 0, summary.maxCombo);
       mergeKeyStats(saveData, summary.keyStats);
-      addUnique(saveData.practicedStages, stageId);
-      updateStreak(saveData);
+      if (!(options && options.partial) && CURRICULUM_DATA.stages.some((stage) => stage.id === stageId)) addUnique(saveData.practicedStages, stageId);
+      const practicedHits = options && options.event ? options.event.correct + options.event.miss : summary.correct + summary.miss;
+      if (!(options && options.partial) && practicedHits > 0 && ["jissen", "banzuke"].includes(stageId) && saveData.dan !== "none") addUnique(saveData.practicedDans, saveData.dan);
+      if (summary.correct + summary.miss > 0) updateStreak(saveData);
+      MetricsEngine.weakKeys(saveData.keyStats, 5).filter((item) => item.missRate > 0.1).forEach((item) => addUnique(saveData.weakTargets, item.key));
+      if (options && options.event) appendEvent(saveData, "session_end", options.event);
     });
   }
 
@@ -177,17 +242,22 @@ const SaveManager = globalThis.SaveManager = (function () {
     return update((saveData) => {
       const stage = CURRICULUM_DATA.stages.find((item) => item.id === stageId);
       addUnique(saveData.clearedStages, stageId);
-      if (stage) stage.jutsu.forEach((id) => addUnique(saveData.scrolls, id));
-      if (stageId === "nyumon4") addUnique(saveData.nicknames, "hajimari");
+      function award(id) {
+        if (saveData.scrolls.includes(id)) return;
+        addUnique(saveData.scrolls, id);
+        appendEvent(saveData, "scroll_get", { id });
+      }
+      if (stage) stage.jutsu.forEach(award);
       if (stageId === "kyu1") {
-        saveData.dan = "genin";
-        addUnique(saveData.scrolls, "shippu");
-        addUnique(saveData.nicknames, "kaiden");
+        if (saveData.dan === "none") saveData.dan = "genin";
+        award("shippu");
       }
       if (!saveData.equippedNickname && saveData.nicknames.length) saveData.equippedNickname = saveData.nicknames[0];
-      saveData.currentStage = stageId === "kyu1" ? "kyu1" : nextStageId(stageId);
-      saveData.eventLog.push(Object.assign({ ts: now(), type: stage && stage.type === "kyu" ? "kyu_pass" : "kyu_pass", id: stageId }, result || {}));
-      saveData.eventLog = saveData.eventLog.slice(-200);
+      const next = stageId === "kyu1" ? "kyu1" : nextStageId(stageId);
+      const order = CURRICULUM_DATA.stages.map((item) => item.id);
+      if (order.indexOf(next) > order.indexOf(saveData.unlockedStage)) saveData.unlockedStage = next;
+      saveData.currentStage = saveData.unlockedStage;
+      appendEvent(saveData, "kyu_pass", Object.assign({ id: stageId }, result || {}));
     });
   }
 
@@ -196,8 +266,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       const before = SaveManager.DAN_ORDER.indexOf(saveData.dan || "none");
       const after = SaveManager.DAN_ORDER.indexOf(danId);
       if (after > before) saveData.dan = danId;
-      saveData.eventLog.push(Object.assign({ ts: now(), type: "dan_pass", id: danId }, result || {}));
-      saveData.eventLog = saveData.eventLog.slice(-200);
+      appendEvent(saveData, "dan_pass", Object.assign({ id: danId }, result || {}));
     });
   }
 
@@ -220,31 +289,40 @@ const SaveManager = globalThis.SaveManager = (function () {
   }
 
   function reset() {
+    if (isTeacherMode()) return false;
     storageRemove(STORAGE_KEY);
+    return true;
   }
 
   function storageGet(key) {
+    if (memoryOnly) return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : null;
     try {
       if (typeof localStorage !== "undefined") return localStorage.getItem(key);
     } catch (error) {
-      // Fall through to memory storage when browser privacy policy blocks localStorage.
+      memoryOnly = true;
+      storageWarning = "この端末では記録を保存できません。ページをとじる前に、バックアップをとってね。";
     }
     return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : null;
   }
 
   function storageSet(key, value) {
+    memoryStorage[key] = String(value);
+    if (memoryOnly) return;
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.setItem(key, value);
+        storageWarning = "";
         return;
       }
     } catch (error) {
-      // Fall through to memory storage when browser privacy policy blocks localStorage.
+      memoryOnly = true;
+      storageWarning = "この端末では記録を保存できません。ページをとじる前に、バックアップをとってね。";
     }
     memoryStorage[key] = String(value);
   }
 
   function storageRemove(key) {
+    delete memoryStorage[key];
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem(key);
@@ -272,10 +350,10 @@ const SaveManager = globalThis.SaveManager = (function () {
 
   function grantNickname(id) {
     return update((saveData) => {
+      if (saveData.nicknames.includes(id)) return;
       addUnique(saveData.nicknames, id);
       if (!saveData.equippedNickname) saveData.equippedNickname = id;
-      saveData.eventLog.push({ ts: now(), type: "nickname_get", id });
-      saveData.eventLog = saveData.eventLog.slice(-200);
+      appendEvent(saveData, "nickname_get", { id });
     });
   }
 
@@ -298,6 +376,7 @@ const SaveManager = globalThis.SaveManager = (function () {
   }
 
   function restoreCode(code, name) {
+    if (isTeacherMode()) throw new Error("先生モードをOFFにしてから、もどしてね");
     const compact = String(code || "").replace(/[\s-]/g, "");
     const bytes = decode5(compact);
     const parsed = parseCodePayload(bytes);
@@ -316,7 +395,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     restored.totals.correct = correctHundreds * 100;
     restored.totals.keys = restored.totals.correct;
     restored.streak = { last: todayJst(), days: streakDays };
-    return save(restored);
+    return save(restored, { restore: true });
   }
 
   function parseCodePayload(bytes) {
@@ -377,6 +456,43 @@ const SaveManager = globalThis.SaveManager = (function () {
     syncAdapter = adapter || null;
   }
 
+  function exportBackup() {
+    return JSON.stringify({ format: "ninda-do-backup", version: 1, exportedAt: now(), save: ensure() }, null, 2);
+  }
+
+  function parseBackup(text) {
+    if (typeof text !== "string" || text.length > 2 * 1024 * 1024) throw new Error("バックアップの大きさがちがいます");
+    const backup = JSON.parse(text);
+    if (backup.format !== "ninda-do-backup" || backup.version !== 1 || !backup.save) throw new Error("忍打道のバックアップをえらんでね");
+    const data = backup.save;
+    if (data.v !== 1 || typeof data.name !== "string" || !CURRICULUM_DATA.stages.some((stage) => stage.id === data.currentStage)
+      || !DAN_ORDER.includes(data.dan) || !data.totals || ["keys", "correct", "miss", "words"].some((key) => !Number.isSafeInteger(data.totals[key]) || data.totals[key] < 0)
+      || data.totals.keys !== data.totals.correct + data.totals.miss
+      || ["clearedStages", "scrolls", "nicknames", "eventLog"].some((key) => !Array.isArray(data[key]))) throw new Error("バックアップの記録がこわれています");
+    const references = { clearedStages: CURRICULUM_DATA.stages.map((item) => item.id), scrolls: JUTSU_DATA.map((item) => item.id), nicknames: NICKNAME_DATA.map((item) => item.id) };
+    if (Object.entries(references).some(([field, ids]) => data[field].some((id) => !ids.includes(id)) || new Set(data[field]).size !== data[field].length)
+      || data.name !== sanitizeName(data.name) || !data.keyStats || typeof data.keyStats !== "object" || Array.isArray(data.keyStats)
+      || Object.entries(data.keyStats).some(([key, stat]) => !FINGER_DATA.keys[key] || !stat || ["attempts", "misses", "sumLatency"].some((field) => !Number.isFinite(stat[field]) || stat[field] < 0) || stat.misses > stat.attempts)
+      || data.eventLog.some((entry) => !entry || !Number.isFinite(entry.ts) || typeof entry.type !== "string")) throw new Error("バックアップの記録がこわれています");
+    const normalized = normalize(data);
+    normalized.settings.teacherMode = false;
+    return normalized;
+  }
+
+  function restoreBackup(text) {
+    if (isTeacherMode()) throw new Error("先生モードをOFFにしてから、もどしてね");
+    const restored = parseBackup(text);
+    return save(restored, { restore: true });
+  }
+
+  function stageUnlocked(stageId, saveData) {
+    const data = saveData || ensure();
+    const stages = CURRICULUM_DATA.stages;
+    const stage = stages.find((item) => item.id === stageId);
+    return !!stage && (isTeacherMode(data) || stage.type === "nyumon" || data.clearedStages.includes(stageId)
+      || stages.findIndex((item) => item.id === stageId) <= stages.findIndex((item) => item.id === data.unlockedStage));
+  }
+
   return {
     STORAGE_KEY,
     DAN_ORDER,
@@ -403,6 +519,8 @@ const SaveManager = globalThis.SaveManager = (function () {
     exportCode,
     restoreCode,
     reset,
-    setSyncAdapter
+    setSyncAdapter,
+    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked,
+    storageStatus: () => ({ persistent: !memoryOnly, warning: storageWarning })
   };
 })();

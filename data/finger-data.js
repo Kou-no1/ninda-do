@@ -1,4 +1,11 @@
 const FINGER_DATA = globalThis.FINGER_DATA = {
+  observations: [
+    { id: "home", label: "FとJの突起に、人さし指をおける" },
+    { id: "fingers", label: "キーを、決められた指でうてる" },
+    { id: "return", label: "うったあと、ホームポジションにもどれる" },
+    { id: "eyes", label: "手元を見すぎず、画面のお題を読める" },
+    { id: "posture", label: "肩と手首に力を入れず、むりのない姿勢でうてる" }
+  ],
   keys: {
     q: { finger: "L5", row: "top" }, a: { finger: "L5", row: "home" }, z: { finger: "L5", row: "bottom" },
     w: { finger: "L4", row: "top" }, s: { finger: "L4", row: "home" }, x: { finger: "L4", row: "bottom" },

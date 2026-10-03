@@ -37,14 +37,14 @@
     <section id="S0" class="screen title-screen">
       <div id="logoMount" class="logo-mount"></div>
       <p class="catch">型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。<br>——それが、忍打道。</p>
-      <form id="nameForm" class="entry-panel" onsubmit="return NindaApp.handleStart(event, 'nyumon1')">
+      <form id="nameForm" class="entry-panel">
         <label for="ninjaName">にんじゃネーム</label>
         <input id="ninjaName" maxlength="10" autocomplete="off" placeholder="しのびまる">
         <p class="hint">ほんとうの名まえじゃなくていいよ。</p>
         <div class="button-row">
           <button type="submit" data-start-stage="nyumon1">はじめてのひと</button>
-          <button type="button" id="startKyu10" data-start-stage="kyu10" onclick="NindaApp.startNew('kyu10')">ローマ字がわかるひと</button>
-          <button type="button" id="continueButton" onclick="NindaApp.showScreen('S1')" hidden>つづきから</button>
+          <button type="button" id="startKyu10" data-start-stage="kyu10">ローマ字がわかるひと</button>
+          <button type="button" id="continueButton" hidden>つづきから</button>
         </div>
       </form>
       <p class="keyboard-note">このアプリはキーボードをつないであそんでね</p>
@@ -62,6 +62,7 @@
           <button data-screen="S6">設定</button>
         </nav>
       </header>
+      <p id="storageWarning" class="storage-warning" role="status" hidden></p>
       <main class="home-grid">
         <section class="map-panel" aria-label="修行マップ">
           <div id="mapMount" class="mountain-map"></div>
@@ -73,6 +74,7 @@
             <button id="trainingButton" aria-label="しゅぎょう"></button>
             <button id="examButton" aria-label="ためし"></button>
             <button id="jissenButton" aria-label="じっせんのま" hidden></button>
+            <button id="frontierButton" hidden></button>
           </div>
         </aside>
       </main>

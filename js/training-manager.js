@@ -16,6 +16,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   let keyListenerReady = false;
   let modalKeyListenerReady = false;
   let modalState = null;
+  let persistenceReady = false;
 
   function byId(id) {
     return document.getElementById(id);
@@ -30,19 +31,18 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   }
 
   function sample(pool, count) {
-    const source = (pool || []).slice();
     const result = [];
-    while (result.length < count && source.length) {
-      const index = Math.floor(Math.random() * source.length);
-      result.push(source.splice(index, 1)[0]);
-    }
     while (result.length < count && pool && pool.length) {
-      result.push(pool[result.length % pool.length]);
+      const source = pool.slice();
+      while (result.length < count && source.length) {
+        result.push(source.splice(Math.floor(Math.random() * source.length), 1)[0]);
+      }
     }
     return result;
   }
 
   function buildTrainingItems(stage, menuIndex) {
+    if (menuIndex === "review") return buildReviewItems(stage);
     const ref = refByName(stage.wordsRef);
     const selectedMenu = Number.isInteger(menuIndex) ? stage.training[menuIndex] : null;
     if (stage.type === "nyumon") {
@@ -57,6 +57,30 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       sample(source, menu.count).forEach((text) => items.push({ text, kind: menu.kind }));
     }
     return items;
+  }
+
+  function buildReviewItems(stage) {
+    const stages = CURRICULUM_DATA.stages.filter((item) => item.type === "kyu");
+    const keySet = new Set(stages.slice(0, stages.findIndex((item) => item.id === stage.id) + 1).flatMap((item) => item.newKeys));
+    const ref = refByName(stage.wordsRef);
+    const kind = stage.training[stage.training.length - 1].kind;
+    const pool = (kind === "in" ? ref.in : kind === "sentence" ? ref.sentences : ref.words).filter((text) => InputEngine.isTypeable(text, keySet));
+    return adaptiveItems(pool, MetricsEngine.weakKeys(SaveManager.ensure().keyStats, 5).filter((item) => keySet.has(item.key)).map((item) => item.key),
+      CURRICULUM_DATA.review.counts[kind], kind, keySet);
+  }
+
+  function adaptiveItems(pool, weak, count, kind, keySet) {
+    const scores = new Map(pool.map((text) => {
+      const units = InputEngine.segment(text);
+      const paths = units.flatMap((unit, index) => InputEngine._candidatesFor(units, index))
+        .filter((path) => !keySet || Array.from(path).every((key) => keySet.has(key)));
+      const priority = weak.findIndex((key) => paths.some((path) => path.includes(key)));
+      return [text, priority < 0 ? 0 : weak.length - priority];
+    }));
+    const shuffled = sample(pool, pool.length).sort((a, b) => scores.get(b) - scores.get(a));
+    const selected = shuffled.slice(0, count);
+    while (selected.length < count && pool.length) selected.push(...sample(pool, Math.min(pool.length, count - selected.length)));
+    return selected.map((text) => ({ text, kind }));
   }
 
   function formatPrompt(text, kind) {
@@ -131,13 +155,23 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (keyListenerReady) return;
     keyListenerReady = true;
     document.addEventListener("keydown", (event) => {
-      if (!active || active.paused) return;
-      if (event.key === "Escape") return;
-      const result = active.session.handleKey(event.key);
+      if (!active || active.complete || active.paused || active.transitioning || !active.session) return;
+      if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.repeat || event.isComposing || event.keyCode === 229
+        || isEditableTarget(event.target) || event.key === "Escape" || modalState
+        || !byId("menuOverlay").hidden || byId(active.config.screen).hidden) return;
+      const run = active;
+      if (run.config.seconds && run.metrics.elapsedSeconds() >= run.config.seconds) { completeRunner(); return; }
+      const result = run.session.handleKey(event.key);
       if (result !== "ignore") event.preventDefault();
       if (result === "done") {
+        run.transitioning = true;
+        run.completedItems += 1;
         updateUi();
-        window.setTimeout(nextItem, 120);
+        run.transitionTimer = window.setTimeout(() => {
+          if (active !== run || run.complete) return;
+          run.transitioning = false;
+          nextItem();
+        }, 120);
       }
     });
   }
@@ -145,19 +179,20 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   function start(stageId, menuIndex) {
     const stage = stageById(stageId);
     if (!stage) return;
+    if (!SaveManager.stageUnlocked(stageId)) return;
+    if (globalThis.ExamManager) ExamManager.cancel();
     const menu = Number.isInteger(menuIndex) ? stage.training[menuIndex] : null;
     const items = buildTrainingItems(stage, menuIndex);
     if (globalThis.NindaApp) NindaApp.showScreen("S2");
     startRunner({
       screen: "S2",
       stageId: stage.id,
-      title: `${stage.label}「${stage.title}」${menu ? ` ${menu.label}` : ""}`,
+      title: `${stage.label}「${stage.title}」${menuIndex === "review" ? ` ${CURRICULUM_DATA.review.label}` : menu ? ` ${menu.label}` : ""}`,
       items,
       guideLevel: stage.type === "nyumon" ? 3 : stage.guideLevelTraining,
       mode: "training",
+      retry() { start(stageId, menuIndex); },
       onComplete(summary, state) {
-        SaveManager.addSessionSummary(stage.id, summary, state.items.length);
-        SaveManager.markPracticed(stage.id);
         if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
       }
     });
@@ -165,14 +200,18 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   function startRunner(config) {
     ensureKeyListener();
+    ensurePersistence();
+    if (active && !active.complete) checkpoint(false, true);
     cleanupTimer();
     cleanupComboTimer();
+    cleanupItemTimers();
+    const clock = config.clock || (() => performance.now());
     active = {
       config,
-      items: config.items || [],
+      items: (config.items || []).slice(),
       index: 0,
       session: null,
-      metrics: MetricsEngine.createSession({ mode: config.mode }),
+      metrics: MetricsEngine.createSession({ mode: config.mode, clock }),
       guideLevel: config.guideLevel,
       mode: config.mode || "training",
       rescue: false,
@@ -184,26 +223,35 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       remaining: config.seconds || 0,
       timer: null,
       complete: false,
+      transitioning: false,
+      completedItems: 0,
+      persisted: { correct: 0, miss: 0, words: 0, keyStats: {} },
+      previousRecord: SaveManager.ensure().eventLog.slice().reverse().find((entry) => entry.type === "session_end" && entry.completed && entry.id === (config.recordId || config.stageId)),
       comboDisplay: 0,
       comboFading: false,
       comboFadeTimer: null,
       lastComboMilestone: 0,
+      checkpointTimer: null,
       kanjiDisplay: SaveManager.ensure().settings.kanjiDisplay !== false
     };
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     const playScreen = document.getElementById(config.screen);
     if (playScreen) playScreen.classList.toggle("shingan-mode", config.guideLevel === 0);
     clearComboFx();
+    ["trainingStats", "examStats"].forEach((id) => { const element = byId(id); if (element) element.innerHTML = ""; });
     mountTitle(config);
     clearResult();
     if (config.seconds) {
+      const run = active;
       active.timer = window.setInterval(() => {
-        if (!active || active.paused) return;
-        active.remaining -= 1;
-        if (active.remaining <= 0) completeRunner();
+        if (active !== run || run.paused || run.complete) return;
+        run.remaining = Math.max(0, Math.ceil(config.seconds - run.metrics.elapsedSeconds()));
+        if (run.remaining <= 0) completeRunner();
         else updateUi();
-      }, 1000);
+      }, 100);
     }
+    const run = active;
+    active.checkpointTimer = window.setInterval(() => { if (active === run && !run.complete) checkpoint(true); }, 30000);
     beginItem();
   }
 
@@ -233,19 +281,28 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   function beginItem() {
     if (!active || active.complete) return;
     if (active.index >= active.items.length) {
-      completeRunner();
-      return;
+      if (active.config.seconds && active.items.length) {
+        active.items.push(...sample(active.config.pool || active.config.items, (active.config.pool || active.config.items).length));
+      } else {
+        completeRunner();
+        return;
+      }
     }
     const item = active.items[active.index];
     active.session = InputEngine.start(item.text, { guideLevel: active.guideLevel, mode: active.mode });
+    const run = active;
     active.session.onEvent((event) => {
+      if (active !== run || run.complete || run.paused) return;
       active.lastEvent = event;
       active.metrics.consume(event);
       handleComboEvent(event);
       if (event.correct) {
         active.missCount = 0;
+        active.rescue = false;
+        window.clearTimeout(active.rescueTimer);
         if (globalThis.AudioManager) AudioManager.correct();
       } else {
+        flashMiss();
         if (globalThis.AudioManager) AudioManager.miss();
         if (active.missUnit === event.unitIndex) active.missCount += 1;
         else {
@@ -267,6 +324,16 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   function showRescue() {
     active.rescue = true;
+    window.clearTimeout(active.rescueTimer);
+    const run = active;
+    active.rescueTimer = window.setTimeout(() => {
+      if (active !== run || run.complete) return;
+      active.rescue = false;
+      updateUi();
+    }, 3000);
+  }
+
+  function flashMiss() {
     const ids = activeIds();
     const prompt = byId(ids.prompt);
     if (prompt) {
@@ -274,12 +341,6 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       void prompt.offsetWidth;
       prompt.classList.add("rescue-flash");
     }
-    window.clearTimeout(active.rescueTimer);
-    active.rescueTimer = window.setTimeout(() => {
-      if (!active) return;
-      active.rescue = false;
-      updateUi();
-    }, 3000);
   }
 
   function nextItem() {
@@ -292,7 +353,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (!active) return;
     const ids = activeIds();
     const item = active.items[active.index] || { text: "", kind: "word" };
-    const summary = active.metrics.summary();
+    const summary = active.finalSummary || active.metrics.summary();
     const prompt = byId(ids.prompt);
     const furigana = byId(ids.furigana);
     const romaji = byId(ids.romaji);
@@ -330,15 +391,15 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       rescue: active.rescue
     });
     if (progress) {
-      const dots = active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
-      progress.textContent = `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
+      const dots = active.config.seconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
+      progress.textContent = active.config.seconds ? `${active.completedItems}問 おわった` : `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
     }
     if (stats) {
       const acc = Math.round(summary.accuracy * 100);
       const parts = [`<span>気配:[${summary.currentRhythm}]</span>`, `<span>正確率:${acc}%</span>`];
       if (active.mode === "jissen") {
         parts.push(`<span>KPM:${Math.round(summary.kpm)}</span>`);
-        if (active.remaining) parts.push(`<span>残り:${active.remaining}秒</span>`);
+        if (active.config.seconds) parts.push(`<span>残り:${active.remaining}秒</span>`);
       }
       if (comboEnabled() && active.comboDisplay >= 5) {
         parts.push(`<span class="combo-count ${active.comboFading ? "fading" : ""}">れんげき ${active.comboDisplay}</span>`);
@@ -352,16 +413,19 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     active.complete = true;
     cleanupTimer();
     cleanupComboTimer();
+    cleanupItemTimers();
     clearComboFx();
     const state = active;
-    const summary = state.metrics.summary();
+    const summary = state.metrics.summary(undefined, state.config.seconds || undefined);
+    state.finalSummary = summary;
+    if (state.config.seconds) state.remaining = 0;
+    checkpoint(false, false, summary);
+    updateUi();
     if (state.config.onComplete) state.config.onComplete(summary, state);
     if (state.config.resultActions !== false) {
       const resultBody = state.config.renderResult
         ? state.config.renderResult(summary, state)
-        : `<h2>修行の記録</h2>
-          <p>正確率 ${Math.round(summary.accuracy * 100)}% ／ 正打 ${summary.correct} ／ ミス ${summary.miss} ／ 気配 ${summary.rhythm}</p>
-          ${state.mode === "jissen" ? `<p>KPM ${Math.round(summary.kpm)}</p>` : ""}`;
+        : `<h2>${state.mode === "jissen" ? "実戦の記録" : "修行の記録"}</h2>`;
       showResultModal(resultBody, summary, state);
     }
     if (globalThis.NindaApp) NindaApp.renderHome();
@@ -396,6 +460,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         </div>
         ${speedHtml}
         ${weakKeysHtml(summary)}
+        ${growthHtml(summary, state.previousRecord)}
         ${parsed.rest ? `<div class="result-message">${parsed.rest}</div>` : ""}
         ${teacherNote}
       </div>`;
@@ -406,7 +471,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         primary: true,
         run() {
           const config = state.config;
-          startRunner(config);
+          if (config.retry) config.retry();
+          else startRunner(config);
         }
       }
     ];
@@ -523,9 +589,11 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         return;
       }
       if (event.key === "Enter" && !isEditableTarget(event.target)) {
-        if (!modalState.defaultActionId) return;
+        const focused = event.target && event.target.closest && event.target.closest("[data-modal-action]");
+        const actionId = focused ? focused.dataset.modalAction : modalState.defaultActionId;
+        if (!actionId) return;
         event.preventDefault();
-        runModalAction(modalState.defaultActionId);
+        runModalAction(actionId);
         return;
       }
       if (event.key === "Tab") trapModalFocus(event);
@@ -589,6 +657,13 @@ const TrainingManager = globalThis.TrainingManager = (function () {
 
   function cleanupTimer() {
     if (active && active.timer) window.clearInterval(active.timer);
+    if (active && active.checkpointTimer) window.clearInterval(active.checkpointTimer);
+  }
+
+  function cleanupItemTimers() {
+    if (!active) return;
+    window.clearTimeout(active.transitionTimer);
+    window.clearTimeout(active.rescueTimer);
   }
 
   function cleanupComboTimer() {
@@ -626,6 +701,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       active.comboDisplay = 0;
       active.comboFading = false;
     }
+    active.lastComboMilestone = 0;
   }
 
   function triggerShuriken(combo) {
@@ -660,21 +736,71 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   }
 
   function stop(goHome) {
+    if (active && !active.complete) checkpoint(false, true);
+    if (active && active.config.onCancel) active.config.onCancel();
     cleanupTimer();
     cleanupComboTimer();
+    cleanupItemTimers();
     clearComboFx();
     closeModal(false);
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     active = null;
+    if (globalThis.AudioManager && AudioManager.cancelSpeech) AudioManager.cancelSpeech();
     if (goHome && globalThis.NindaApp) NindaApp.showScreen("S1");
   }
 
   function setPaused(paused) {
-    if (active) active.paused = paused;
+    if (!active || active.complete || active.paused === paused) return;
+    active.metrics.setPaused(paused);
+    active.paused = paused;
   }
 
   function isActive() {
-    return !!active;
+    return !!active && !active.complete;
+  }
+
+  function ensurePersistence() {
+    if (persistenceReady) return;
+    persistenceReady = true;
+    window.addEventListener("beforeunload", () => { checkpoint(true); SaveManager.flush(); });
+    window.addEventListener("pagehide", () => { checkpoint(true); SaveManager.flush(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) checkpoint(true); });
+  }
+
+  function checkpoint(partial, aborted, finalSummary) {
+    if (!active || (active.complete && !finalSummary)) return;
+    const run = active;
+    const summary = finalSummary || run.metrics.summary();
+    const before = run.persisted;
+    const keyStats = {};
+    Object.entries(summary.keyStats).forEach(([key, stat]) => {
+      const previous = before.keyStats[key] || { attempts: 0, misses: 0, sumLatency: 0 };
+      const attempts = stat.attempts - previous.attempts;
+      keyStats[key] = { attempts, misses: stat.misses - previous.misses, sumLatency: stat.sumLatency - previous.sumLatency,
+        recent: attempts ? stat.recent.slice(-Math.min(attempts, 20)) : [] };
+    });
+    const delta = Object.assign({}, summary, { correct: summary.correct - before.correct, miss: summary.miss - before.miss, keyStats });
+    const event = partial ? null : {
+      id: run.config.recordId || run.config.stageId || "dan", mode: run.mode, completed: !aborted,
+      correct: summary.correct, miss: summary.miss, acc: summary.accuracy, rhythm: summary.rhythm,
+      maxCombo: summary.maxCombo, words: run.completedItems, keyStats: summary.keyStats,
+      ...(run.mode === "jissen" ? { kpm: summary.kpm } : {})
+    };
+    SaveManager.addSessionSummary(run.config.stageId, delta, run.completedItems - before.words,
+      { partial: partial || aborted, event });
+    run.persisted = { correct: summary.correct, miss: summary.miss, words: run.completedItems, keyStats: summary.keyStats };
+    if (!partial) SaveManager.flush();
+  }
+
+  function growthHtml(summary, previous) {
+    if (!previous || SaveManager.isTeacherMode()) return "";
+    const diff = Math.round((summary.accuracy - previous.acc) * 100);
+    const improved = Object.entries(summary.keyStats).filter(([key, stat]) => {
+      const before = previous.keyStats && previous.keyStats[key];
+      return before && before.attempts >= 3 && stat.attempts >= 3 && stat.misses / stat.attempts < before.misses / before.attempts;
+    }).map(([key]) => key).slice(0, 3);
+    return `<div class="result-growth"><h3>${UI_TEXT.growth.compare}</h3><p>${UI_TEXT.growth.accuracy} ${diff > 0 ? "+" : ""}${diff}${UI_TEXT.growth.points} ／ ${UI_TEXT.growth.rhythm} ${escapeHtml(previous.rhythm)} → ${escapeHtml(summary.rhythm)}</p>
+      ${improved.length ? `<p>${UI_TEXT.growth.improved} ${improved.map((key) => `<kbd>${escapeHtml(key)}</kbd>`).join(" ")}</p>` : ""}</div>`;
   }
 
   function escapeHtml(value) {
@@ -687,6 +813,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     stop,
     setPaused,
     isActive,
+    hasSession: () => !!active,
     sample,
     stageById,
     refByName,
@@ -697,6 +824,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     romajiWindow,
     displayHtml,
     openModal,
-    closeModal
+    closeModal,
+    buildReviewItems, adaptiveItems, checkpoint
   };
 })();

@@ -40,7 +40,10 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
 
   function createSession(options) {
     const mode = options && options.mode ? options.mode : "training";
-    const startedAt = Date.now();
+    const clock = options && options.clock || Date.now;
+    const startedAt = clock();
+    let pausedAt = null;
+    let pausedMs = 0;
     const state = {
       mode,
       correct: 0,
@@ -53,7 +56,6 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
       rhythmUpdates: 0,
       keyStats: {},
       lastTs: startedAt,
-      bestKpm: 0,
       combo: 0,
       maxCombo: 0
     };
@@ -72,12 +74,13 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
     }
 
     function elapsedSeconds(now) {
-      return Math.max(0.001, ((now || state.lastTs || Date.now()) - startedAt) / 1000);
+      const end = pausedAt !== null ? pausedAt : (Number.isFinite(now) ? now : clock());
+      return Math.max(0, (end - startedAt - pausedMs) / 1000);
     }
 
     return {
       consume(event) {
-        if (!event || typeof event.correct !== "boolean") return;
+        if (pausedAt !== null || !event || typeof event.correct !== "boolean") return;
         state.lastTs = event.ts || Date.now();
         const expected = event.expectedKeys && event.expectedKeys[0] ? event.expectedKeys[0] : event.key;
         const stat = expected ? ensureKey(expected) : null;
@@ -104,9 +107,6 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
             state.rhythmUpdates += 1;
             if (rhythm.label === "不動") state.fudoUpdates += 1;
           }
-          if (mode === "jissen") {
-            state.bestKpm = Math.max(state.bestKpm, state.correct * 60 / elapsedSeconds(state.lastTs));
-          }
         } else {
           state.miss += 1;
           state.combo = 0;
@@ -117,9 +117,10 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
         }
         if (stat && stat.recent.length > 20) stat.recent.shift();
       },
-      summary(now) {
+      summary(now, durationSeconds) {
         const rhythmCv = median(state.cvSamples);
-        const kpm = mode === "jissen" ? state.correct * 60 / elapsedSeconds(now || state.lastTs || Date.now()) : 0;
+        const seconds = Number.isFinite(durationSeconds) ? durationSeconds : elapsedSeconds(now);
+        const speed = mode === "jissen" ? { kpm: seconds > 0 ? state.correct * 60 / seconds : 0 } : {};
         return {
           mode,
           correct: state.correct,
@@ -129,12 +130,22 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
           currentRhythm: currentRhythm().label,
           rhythmCv,
           fudoRate: state.rhythmUpdates ? state.fudoUpdates / state.rhythmUpdates : 0,
-          kpm,
-          bestKpm: Math.max(state.bestKpm, kpm),
+          ...speed,
+          elapsedSeconds: seconds,
           combo: state.combo,
           maxCombo: state.maxCombo,
           keyStats: this.keyStats()
         };
+      },
+      elapsedSeconds,
+      setPaused(paused) {
+        if (paused && pausedAt === null) pausedAt = clock();
+        if (!paused && pausedAt !== null) {
+          pausedMs += clock() - pausedAt;
+          pausedAt = null;
+          state.lastEventTs = null;
+          state.lastCorrectTs = null;
+        }
       },
       keyStats() {
         const copy = {};
@@ -153,7 +164,7 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
 
   function weakKeys(keyStats, limit) {
     return Object.entries(keyStats || {})
-      .filter(([, stat]) => stat.attempts >= 10)
+      .filter(([, stat]) => stat.attempts >= 10 && stat.misses > 0)
       .map(([key, stat]) => ({ key, missRate: stat.misses / Math.max(1, stat.attempts), attempts: stat.attempts }))
       .sort((a, b) => b.missRate - a.missRate || b.attempts - a.attempts)
       .slice(0, limit || 5);
