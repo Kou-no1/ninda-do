@@ -227,6 +227,7 @@ const ExamManager = globalThis.ExamManager = (function () {
       return;
     }
     if (menu.kind === "courier") { NinjaGameManager.openCourses(); return; }
+    if (menu.kind === "literature") { LiteratureManager.open(); return; }
     const items = buildJissenItems(menu, save);
     NindaApp.showScreen("S2");
     TrainingManager.startRunner({

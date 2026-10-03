@@ -570,6 +570,153 @@ try {
     await evaluate("LearningManager.open('missions');"); await screenshot("missions-light-1024.png");
   });
 
+  await test("advanced library is rank-gated, browsable by course and author, and excludes unaudited works", async () => {
+    await fresh("kyu1");
+    await evaluate("LearningManager.open('literature');");
+    assert.equal(await evaluate("document.querySelector('.library-courses')===null"), true);
+    assert.equal(await evaluate("/KPM|タイムアタック|スコア/.test(document.getElementById('learningMount').textContent)"), false);
+    await evaluate("SaveManager.update(s=>{s.dan='chunin';});NindaApp.openJissenMenu();");
+    assert.equal(await evaluate("document.querySelector('[data-menu-card=literature]').getAttribute('aria-disabled')"), "true");
+    await evaluate("document.querySelector('[data-menu-card=literature]').click();");
+    assert.equal(await evaluate("document.getElementById('menuOverlay').hidden"), false);
+    await evaluate("SaveManager.update(s=>{s.dan='jonin';});NindaApp.openJissenMenu();document.querySelector('[data-menu-card=literature]').click();");
+    assert.equal(await evaluate("document.getElementById('menuOverlay').hidden"), true);
+    assert.equal(await evaluate("document.querySelectorAll('[data-literature-course]').length"), 4);
+    assert.equal(await evaluate("document.querySelectorAll('[data-literature-work]').length"), 7);
+    await evaluate("document.querySelector('[data-literature-course=modern]').click();document.getElementById('literatureAuthor').value='夏目漱石';document.getElementById('literatureAuthor').dispatchEvent(new Event('change'));");
+    assert.equal(await evaluate("document.querySelectorAll('[data-literature-work]').length"), 2);
+    assert.equal(await evaluate("document.activeElement.id"), "literatureAuthor");
+    await evaluate("document.querySelector('[data-literature-work=neko]').click();");
+    assert.equal(await evaluate("document.activeElement.dataset.menuCard"), "literature-read");
+    await evaluate("__key('ArrowDown');");
+    assert.equal(await evaluate("document.activeElement.dataset.menuCard"), "literature-timed");
+    await evaluate("__key('Escape');SaveManager.setSetting('teacherMode',true);LiteratureManager.open('poetry');LiteratureManager.startWork('misuzu-kotori');");
+    assert.equal(await evaluate("TrainingManager.isActive()"), false);
+    assert.equal(await evaluate("document.querySelectorAll('[data-literature-work]').length"), 1);
+    assert.equal(await evaluate("document.querySelector('[data-literature-work=misuzu-kotori]')===null"), true);
+  });
+
+  await test("untimed literature finishes the included excerpt, records books, and preserves kana judgement", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.update(s=>{s.dan='jonin';});LiteratureManager.open('modern');LiteratureManager.chooseWork('neko');");
+    await delay(30);
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    assert.equal(await evaluate("TrainingManager.isActive()"), true);
+    assert.equal(await evaluate("/KPM|残り|スコア/.test(document.getElementById('trainingStats').textContent)"), false);
+    assert.ok(await evaluate("document.querySelector('#promptKana ruby rt').textContent==='わがはい'"));
+    const current = await evaluate("document.querySelector('#promptKana .current').textContent");
+    await keys("q"); assert.equal(await evaluate("document.querySelector('#promptKana .current').textContent"), current);
+    const input = await evaluate("InputEngine.preferredRomaji(LiteratureManager.buildItems('neko')[0].text)");
+    await keys(input); await delay(180);
+    assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('.result-speed')===null"), true);
+    assert.equal(await evaluate("document.querySelector('.result-coach')===null"), true);
+    assert.ok(await evaluate("document.querySelector('.result-game-detail').textContent.includes('冒頭の抜粋')"));
+    assert.equal(await evaluate("SaveManager.ensure().learning.books.neko.accuracy"), input.length / (input.length + 1));
+    assert.ok(await evaluate("SaveManager.ensure().learning.readings.includes(LiteratureManager.buildItems('neko')[0].text)"));
+    const record = await evaluate("SaveManager.ensure().learning.books.neko");
+    await screenshot("literature-result.png");
+    await evaluate("document.querySelector('[data-modal-action=library]').click();");
+    assert.equal(await evaluate("document.getElementById('S7').hidden"), false);
+    assert.ok(await evaluate("document.querySelector('[data-literature-work=neko]').textContent.includes('うちきった')"));
+    await send("Page.reload"); await delay(150); await ready();
+    assert.deepEqual(await evaluate("SaveManager.ensure().learning.books.neko"), record);
+    await evaluate("LearningManager.open('reading');");
+    assert.ok(await evaluate("document.querySelector('.reading-books').textContent.includes('吾輩は猫である')"));
+    await evaluate("LiteratureManager.startWork('botchan');__key('o');TrainingManager.stop(false);");
+    assert.equal(await evaluate("SaveManager.ensure().learning.books.botchan===undefined"), true);
+  });
+
+  await test("timed literature uses course duration without Tier or book completion and teacher play is read-only", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.update(s=>{s.dan='jonin';});LiteratureManager.startTimed('modern','neko');");
+    assert.ok(await evaluate("document.getElementById('trainingStats').textContent.includes('残り:90秒')"));
+    const input = await evaluate("InputEngine.preferredRomaji(LiteratureManager.buildItems('neko')[0].text)");
+    await keys(input); await delay(180);
+    assert.equal(await evaluate("TrainingManager.isActive()"), true);
+    await evaluate("__advance(89900);"); assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), true);
+    await evaluate("__advance(100);");
+    assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('.result-speed').textContent.includes('KPM')"), true);
+    assert.equal(await evaluate("/Tier|スコア/.test(document.querySelector('.result-speed').textContent)"), false);
+    assert.equal(await evaluate("SaveManager.ensure().learning.books.neko===undefined"), true);
+    await evaluate("TrainingManager.stop(false);SaveManager.setSetting('teacherMode',true);window.__literatureBefore=JSON.stringify(SaveManager.ensure());LiteratureManager.startWork('furuike');");
+    await keys(await evaluate("InputEngine.preferredRomaji(LiteratureManager.buildItems('furuike')[0].text)")); await delay(180);
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__literatureBefore"), true);
+    assert.ok(await evaluate("document.getElementById('resultModalMount').textContent.includes('記録はのこりません')"));
+    await evaluate("LiteratureManager.startTimed('classic');__key('q');__advance(120000);");
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__literatureBefore"), true);
+    await evaluate("TrainingManager.stop(false);");
+  });
+
+  await test("poem display fixture preserves ordered lines, ruby and attribution with no production audit bypass", async () => {
+    await fresh("kyu1");
+    // A read-only test fixture exercises future audited poems; production data remains pending.
+    await evaluate("SaveManager.setSetting('teacherMode',true);window.__poemBefore=JSON.stringify(SaveManager.ensure());window.__poem=LITERATURE_DATA.works.find(w=>w.id==='misuzu-kotori');window.__poemAudit=__poem.audit;window.__poemReview=__poem.useReview;__poem.audit='approved';delete __poem.useReview;LiteratureManager.startWork(__poem.id);");
+    assert.equal(await evaluate("document.querySelectorAll('#promptKana .prompt-progress br').length"), 1);
+    assert.equal(await evaluate("document.querySelectorAll('#promptKana .prompt-kanji br').length"), 1);
+    assert.ok(await evaluate("document.querySelector('#promptKana rt').textContent==='わたし'"));
+    assert.ok(await evaluate("document.getElementById('promptFurigana').textContent.includes('金子みすゞ')"));
+    await screenshot("literature-poem-fixture.png");
+    for (let index = 0; index < 5; index += 1) {
+      assert.equal(await evaluate("document.querySelector('#promptKana .prompt-progress').textContent"), await evaluate(`__poem.passages[${index}].kana`));
+      assert.ok(await evaluate(`document.getElementById('progressMount').textContent.includes('${index + 1} / 5')`));
+      await keys(await evaluate(`InputEngine.preferredRomaji(__poem.passages[${index}].kana)`)); await delay(180);
+    }
+    assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__poemBefore"), true);
+    await evaluate("TrainingManager.stop(false);__poem.audit=__poemAudit;__poem.useReview=__poemReview;");
+    assert.equal(await evaluate("LiteratureManager.buildItems('misuzu-kotori').length"), 0);
+  });
+
+  await test("advanced library and long excerpts fit both themes and widths; grade return has no speed DOM", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.setSetting('teacherMode',true);SaveManager.setSetting('textSize','large');SaveManager.setSetting('lineSpacing','wide');SaveManager.setSetting('reduceMotion',true);");
+    for (const width of [1366, 1024]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 768, deviceScaleFactor: 1, mobile: false });
+      for (const theme of ["night", "light"]) {
+        await evaluate(`SaveManager.setSetting('display',${JSON.stringify(theme)});NindaApp.applyTheme();LiteratureManager.open('classic');`);
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        await screenshot(`literature-library-${theme}-${width}.png`);
+        await evaluate("LiteratureManager.startWork('makura');");
+        const input = await evaluate("InputEngine.preferredRomaji(LiteratureManager.buildItems('makura')[0].text)");
+        await keys(input.slice(0, -1));
+        const rect = await evaluate("(()=>{const r=document.querySelector('#promptKana .current').getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};})()");
+        assert.ok(rect.top >= 0 && rect.bottom <= 768 && rect.left >= 0 && rect.right <= width, JSON.stringify(rect));
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        await screenshot(`literature-excerpt-${theme}-${width}.png`);
+        await evaluate("TrainingManager.stop(false);");
+      }
+    }
+    await evaluate("SaveManager.setSetting('teacherMode',false);SaveManager.setSetting('textSize','normal');SaveManager.setSetting('lineSpacing','normal');NindaApp.applyTheme();NindaApp.showScreen('S2');TrainingManager.startRunner({screen:'S2',stageId:'kyu9',items:[{text:'asdf',kind:'in'}],guideLevel:3,mode:'training'});");
+    assert.equal(await evaluate("document.querySelector('#S2').classList.contains('literature-mode')"), false);
+    assert.equal(await evaluate("/KPM|スコア|残り/.test(document.getElementById('trainingStats').textContent)"), false);
+    await keys("asdf"); await delay(180);
+    assert.equal(await evaluate("document.querySelector('.result-speed')===null"), true);
+    await evaluate("TrainingManager.stop(false);");
+  });
+
+  await test("all candidate passage layouts keep the final current unit visible in large-text fixtures", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.setSetting('teacherMode',true);SaveManager.setSetting('textSize','large');SaveManager.setSetting('lineSpacing','wide');NindaApp.applyTheme();window.__candidates=LITERATURE_DATA.works.filter(w=>w.audit==='pending').flatMap(w=>w.passages);");
+    const length = await evaluate("__candidates.length");
+    assert.equal(length, 24);
+    for (const width of [1366, 1024]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 768, deviceScaleFactor: 1, mobile: false });
+      for (let index = 0; index < length; index += 1) {
+        await evaluate(`NindaApp.showScreen('S2');TrainingManager.startRunner({screen:'S2',stageId:'literature',presentation:'literature',title:'長文表示のテスト',guideLevel:1,mode:'training',advice:false,items:[{...__candidates[${index}],text:__candidates[${index}].kana,kind:'sentence'}]});`);
+        const input = await evaluate(`InputEngine.preferredRomaji(__candidates[${index}].kana)`);
+        await keys(input.slice(0, -1));
+        const rect = await evaluate("(()=>{const r=document.querySelector('#promptKana .current').getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};})()");
+        assert.ok(rect.top >= 0 && rect.bottom <= 768 && rect.left >= 0 && rect.right <= width, `${width} candidate ${index + 1}: ${JSON.stringify(rect)}`);
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        await evaluate("TrainingManager.stop(false);");
+      }
+    }
+    assert.equal(await evaluate("LiteratureManager.works().length"), 23);
+  });
+
   await test("teacher lesson export is ephemeral; readability settings persist on reload", async () => {
     await fresh("kyu5");
     await evaluate(`SaveManager.setSetting('teacherMode',true);LearningManager.open('lessons');window.__lessonBefore=JSON.stringify(SaveManager.ensure());document.getElementById('lessonTitle').value='はなの巻';document.getElementById('lessonStage').value='kyu5';document.getElementById('lessonStage').dispatchEvent(new Event('change'));document.getElementById('lessonKind').value='word';document.getElementById('lessonItems').value='はな\\nねこ';document.getElementById('lessonRights').checked=true;window.__createUrl=URL.createObjectURL;URL.createObjectURL=blob=>{window.__exportedLesson=blob;return __createUrl(blob);};window.__anchorClick=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){};document.getElementById('lessonForm').requestSubmit();URL.createObjectURL=__createUrl;HTMLAnchorElement.prototype.click=__anchorClick;`);

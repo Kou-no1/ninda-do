@@ -205,7 +205,9 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
           const stage = CURRICULUM_DATA.stages.find((item) => item.id === (entry.stageId || entry.id));
           const course = RANK_DATA.banzuke.courses.find((item) => item.id === entry.id);
           const delivery = entry.purpose === "courier" ? GAME_DATA.courses.find((item) => entry.id === `courier:${item.id}`) : null;
-          const label = stage ? stage.label : delivery ? `${GAME_DATA.label} ${delivery.label}` : entry.lessonId ? UI_TEXT.learning.lessons : course ? course.label : entry.id && entry.id.includes(":") ? "三の試し" : "実戦";
+          const literatureId = entry.purpose === "literature" ? String(entry.id || "").split(":")[1] : "";
+          const literature = LiteratureManager.works().find((item) => item.id === literatureId) || LITERATURE_DATA.courses.find((item) => item.id === literatureId);
+          const label = stage ? stage.label : delivery ? `${GAME_DATA.label} ${delivery.label}` : literature ? literature.title || literature.label : entry.lessonId ? UI_TEXT.learning.lessons : course ? course.label : entry.id && entry.id.includes(":") ? "三の試し" : "実戦";
           return `<tr><td>${escapeHtml(new Date(entry.ts).toLocaleDateString("ja-JP"))}</td><td>${escapeHtml(label)}</td><td>${Math.round((entry.acc || 0) * 100)}%</td><td>${escapeHtml(entry.rhythm || "—")}</td><td>${numberText(entry.maxCombo)}</td></tr>`;
         }).join("")}</tbody></table></div>` : `<p>${escapeHtml(text.empty)}</p>`}</section>`;
   }

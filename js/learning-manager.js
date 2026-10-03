@@ -8,11 +8,12 @@ const LearningManager = globalThis.LearningManager = (function () {
   const number = (value) => Number.isInteger(value) && value >= 0 ? value : 0;
 
   function emptyState() {
-    return { reviews: {}, counters: { practice: 0, review: 0, calm: 0, delivered: 0 }, missions: [], readings: [], lessonPack: null, completedLessons: [] };
+    return { reviews: {}, counters: { practice: 0, review: 0, calm: 0, delivered: 0 }, missions: [], readings: [], books: {}, lessonPack: null, completedLessons: [] };
   }
 
   function readingEntries() {
-    return RANK_DATA.banzuke.courses.flatMap((course) => globalThis[course.wordsRef].items).filter((item) => item && typeof item === "object" && item.genre && item.source);
+    const existing = RANK_DATA.banzuke.courses.flatMap((course) => globalThis[course.wordsRef].items).filter((item) => item && typeof item === "object" && item.genre && item.source);
+    return [...new Map(existing.concat(LiteratureManager.entries()).map((item) => [item.kana, item])).values()];
   }
 
   function normalizeState(raw) {
@@ -24,6 +25,9 @@ const LearningManager = globalThis.LearningManager = (function () {
     result.missions = [...new Set((Array.isArray(raw.missions) ? raw.missions : []).filter((id) => LEARNING_DATA.missions.some((item) => item.id === id)))];
     const validReadings = new Set(readingEntries().map((item) => item.kana));
     result.readings = [...new Set((Array.isArray(raw.readings) ? raw.readings : []).filter((id) => validReadings.has(id)))];
+    const bookIds = new Set(LiteratureManager.works().map((work) => work.id));
+    result.books = Object.fromEntries(Object.entries(raw.books || {}).filter(([id, record]) => bookIds.has(id) && record && /^\d{4}-\d{2}-\d{2}$/.test(record.date || "")
+      && Number.isFinite(record.accuracy) && record.accuracy >= 0 && record.accuracy <= 1).map(([id, record]) => [id, { date: record.date, accuracy: record.accuracy }]));
     result.completedLessons = [...new Set((Array.isArray(raw.completedLessons) ? raw.completedLessons : []).filter((id) => /^lesson-[a-f0-9]+$/.test(id)))].slice(-100);
     if (raw.lessonPack) { try { result.lessonPack = parseLesson(raw.lessonPack); } catch (error) { result.lessonPack = null; } }
     return result;
@@ -44,6 +48,9 @@ const LearningManager = globalThis.LearningManager = (function () {
       if (["静", "不動"].includes(event.rhythm)) state.counters.calm += 1;
     }
     (event.readings || []).forEach((kana) => { if (!state.readings.includes(kana)) state.readings.push(kana); });
+    if (event.literatureId && LiteratureManager.works().some((work) => work.id === event.literatureId)) {
+      state.books[event.literatureId] = { date: day, accuracy: event.acc };
+    }
     if (event.lessonId && !state.completedLessons.includes(event.lessonId)) state.completedLessons.push(event.lessonId);
     state.counters.delivered += event.delivered || 0;
     LEARNING_DATA.missions.forEach((mission) => {
@@ -171,7 +178,7 @@ const LearningManager = globalThis.LearningManager = (function () {
       });
     });
     const views = { today: renderToday, mini: renderMini, missions: renderMissions, keys: renderKeys, reading: renderReading, lessons: renderLessons,
-      wardrobe: NinjaGameManager.renderWardrobe, shared: NinjaGameManager.renderShared };
+      literature: LiteratureManager.render, wardrobe: NinjaGameManager.renderWardrobe, shared: NinjaGameManager.renderShared };
     (views[currentTab] || renderToday)(mount, save);
   }
 
@@ -216,8 +223,11 @@ const LearningManager = globalThis.LearningManager = (function () {
   function renderReading(mount, save) {
     const teacher = SaveManager.isTeacherMode();
     const entries = readingEntries().filter((item) => teacher || save.learning.readings.includes(item.kana));
-    mount.innerHTML = `<h2>${UI_TEXT.learning.reading} <small>${entries.length} / ${readingEntries().length}</small></h2>${entries.length ? entries.map((item) =>
-      `<details class="reading-entry"><summary>${TrainingManager.displayHtml(item.display, item.ruby)}</summary><p class="reading-kana">${esc(item.kana)}</p><p class="reading-source">${esc(item.source)}</p><p>${esc(LEARNING_DATA.readingNotes[item.source] || "")}</p>${teacher && !save.learning.readings.includes(item.kana) ? `<small>${UI_TEXT.learning.preview}</small>` : ""}</details>`).join("") : `<p>${UI_TEXT.learning.readingEmpty}</p>`}`;
+    const completed = LiteratureManager.works().filter((work) => save.learning.books[work.id]);
+    mount.innerHTML = `<h2>${UI_TEXT.learning.reading} <small>${entries.length} / ${readingEntries().length}</small></h2>
+      <section class="reading-books"><h3>${UI_TEXT.literature.bookRecords}</h3>${completed.length ? completed.map((work) => `<p><strong>${esc(work.title)}</strong> ／ ${esc(work.extent)} ／ ${esc(save.learning.books[work.id].date)} ／ ${Math.round(save.learning.books[work.id].accuracy * 100)}%</p>`).join("") : `<p>${UI_TEXT.literature.noBooks}</p>`}</section>
+      ${entries.length ? entries.map((item) =>
+      `<details class="reading-entry"><summary>${TrainingManager.displayHtml(item.display, item.ruby, item.displayLines)}</summary><p class="reading-kana">${esc(item.kana)}</p><p class="reading-source">${esc(item.source)}</p><p>${esc(LEARNING_DATA.readingNotes[item.source] || LiteratureManager.note(item.kana))}</p>${teacher && !save.learning.readings.includes(item.kana) ? `<small>${UI_TEXT.learning.preview}</small>` : ""}</details>`).join("") : `<p>${UI_TEXT.learning.readingEmpty}</p>`}`;
   }
 
   function renderLessons(mount, save) {

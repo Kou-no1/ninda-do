@@ -33,7 +33,8 @@ const RANK_DATA = globalThis.RANK_DATA = {
     { id: "weak", label: "弱点特訓", kind: "weak", items: 10, source: "DAN_WORDS", unlockDan: "genin", desc: "ミスのおおいキーを、しゅうちゅうできたえる。" },
     { id: "meibun-jissen", label: "名文の実戦", kind: "sentence", seconds: 90, source: "MICHI_ALL", genre: "meibun", unlockDan: "jonin", desc: "90びょうで、めいぶんをうつ。むかしの人のことばを、ゆびでたどる。" },
     { id: "koten-jissen", label: "古文の実戦", kind: "sentence", seconds: 120, source: "MICHI_ALL", genre: "koten", unlockDan: "jonin", desc: "120びょうで、こてんのめいぶんをうつ。いちばんふるいことばの道。" },
-    { id: "courier", label: "巻物便", kind: "courier", unlockDan: "genin", desc: "ことばをうって、巻物を里へとどける。正しくうつほど、荷物がふえる。" }
+    { id: "courier", label: "巻物便", kind: "courier", unlockDan: "genin", desc: "ことばをうって、巻物を里へとどける。正しくうつほど、荷物がふえる。" },
+    { id: "literature", label: "名文アドバンスド", kind: "literature", unlockDan: "jonin", desc: "古典・物語・俳句・詩。作品をえらび、順にうちきる。" }
   ],
   banzuke: {
     seconds: 60,

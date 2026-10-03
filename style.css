@@ -1251,6 +1251,36 @@ th, td { border-bottom: 1px solid rgba(42, 38, 34, 0.2); padding: 7px 10px; over
 .reading-entry rt { font-size: 45%; }
 .reading-entry p { line-height: 1.9; }
 .reading-source { color: var(--muted); }
+.reading-books { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.reading-books h3 { font-size: 18px; }
+.reading-books p { font-size: 14px; color: var(--muted); }
+.library-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.library-heading small { color: var(--muted); }
+.library-courses { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+.library-courses button { min-height: 66px; background: var(--surface); color: var(--tsuki); border-color: var(--line); }
+.library-courses button[aria-pressed="true"] { border-color: var(--ai); background: var(--yoru-deep); }
+.library-heading rt, .library-courses rt, .library-work rt { font-size: 45%; }
+.library-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 0 0 20px; }
+.library-toolbar p { flex: 1 1 100%; margin: 4px 0; color: var(--muted); }
+.library-toolbar label { display: flex; align-items: center; gap: 10px; }
+.library-toolbar select { max-width: 230px; background: var(--surface); color: var(--tsuki); border-color: var(--line); }
+.library-toolbar button { margin-left: auto; }
+.library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.library-work { display: flex; align-items: center; gap: 16px; min-height: 150px; background: var(--paper); color: var(--sumi); text-align: left; border-color: var(--paper-muted); padding: 18px; }
+.library-work > span:last-child { min-width: 0; }
+.library-work strong, .library-work span span, .library-work small { display: block; }
+.library-work strong { font-size: 21px; line-height: 1.8; }
+.library-work small { color: var(--paper-muted); line-height: 1.8; font-size: 12px; }
+.library-work-icon { width: 42px; flex: 0 0 42px; color: var(--ai); }
+.library-work-icon svg { width: 42px; height: 42px; }
+.literature-mode .prompt-kana { width: min(900px, 100%); }
+.literature-mode .prompt-kanji { margin-bottom: 8px; }
+.literature-mode .prompt-progress { line-height: 1.65; }
+@media (max-width: 700px) {
+  .library-courses { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .library-grid { grid-template-columns: minmax(0, 1fr); }
+  .library-toolbar button { margin-left: 0; }
+}
 .lesson-pack, .lesson-editor { padding: 20px 0; border-top: 1px solid var(--line); margin-top: 20px; }
 .lesson-editor { max-width: 760px; display: grid; gap: 16px; }
 .lesson-editor label { display: grid; gap: 8px; }

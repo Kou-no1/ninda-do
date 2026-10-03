@@ -108,7 +108,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     return step ? step.kanji : PROMPT_LAYOUT_CONFIG.sizes[PROMPT_LAYOUT_CONFIG.sizes.length - 1].kanji;
   }
 
-  function promptProgressHtml(text, kind, progress) {
+  function promptProgressHtml(text, kind, progress, lines) {
     const source = String(text || "");
     let units;
     try {
@@ -118,11 +118,19 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     }
     const currentIndex = progress && Number.isFinite(progress.unitIndex) ? progress.unitIndex : 0;
     const addSpaces = source.length <= PROMPT_LAYOUT_CONFIG.spacedMaxLength && !/^[a-z.,-]+$/.test(source);
+    const breaks = new Set();
+    if (Array.isArray(lines) && lines.join("") === source) {
+      let length = 0;
+      lines.slice(0, -1).forEach((line) => { length += line.length; breaks.add(length); });
+    }
+    let offset = 0;
     const html = units.map((unit, index) => {
+      const newline = breaks.has(offset) ? '<br class="prompt-line-break">' : "";
+      offset += unit.length;
       const label = kind === "letter" ? unit.toUpperCase() : unit;
       const state = index < currentIndex ? " done" : index === currentIndex ? " current" : "";
       const separator = addSpaces && index < units.length - 1 ? '<span class="prompt-separator" aria-hidden="true"> </span>' : "";
-      return `<span class="prompt-unit${state}">${escapeHtml(label)}</span>${separator}`;
+      return `${newline}<span class="prompt-unit${state}">${escapeHtml(label)}</span>${separator}`;
     }).join("");
     return `<span class="prompt-progress">${html}</span>`;
   }
@@ -141,8 +149,25 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     };
   }
 
-  function displayHtml(display, ruby) {
+  function displayHtml(display, ruby, lines) {
     const label = String(display || "");
+    if (Array.isArray(lines) && lines.join("") === label) {
+      let offset = 0;
+      return lines.map((line) => {
+        const start = offset;
+        offset += line.length;
+        let cursor = 0;
+        const valid = Array.isArray(ruby) && ruby.every((part) => Array.isArray(part) && typeof part[0] === "string" && part[0]
+          && (part.length === 1 || part.length === 2 && typeof part[1] === "string" && part[1]));
+        const parts = valid ? ruby.flatMap((part) => {
+          const before = cursor; cursor += part[0].length;
+          if (cursor <= start || before >= offset) return [];
+          const slice = part[0].slice(Math.max(0, start - before), Math.min(part[0].length, offset - before));
+          return [slice === part[0] ? part : [slice]];
+        }) : [];
+        return displayHtml(line, parts);
+      }).join('<br class="prompt-line-break">');
+    }
     if (!Array.isArray(ruby) || !ruby.length) return escapeHtml(label);
     const valid = ruby.every((part) => Array.isArray(part) && (part.length === 1 || part.length === 2)
       && typeof part[0] === "string" && part[0].length > 0
@@ -248,6 +273,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     const courier = byId("courierMount");
     if (courier) { courier.innerHTML = ""; courier.hidden = true; }
     if (playScreen) playScreen.classList.toggle("courier-mode", config.presentation === "courier");
+    if (playScreen) playScreen.classList.toggle("literature-mode", config.presentation === "literature");
     ["trainingStats", "examStats"].forEach((id) => { const element = byId(id); if (element) element.innerHTML = ""; });
     mountTitle(config);
     clearResult();
@@ -381,7 +407,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       prompt.style.setProperty("--kanji-size", kanjiSize(item.text));
       prompt.dataset.promptLength = String(Array.from(String(item.text || "")).length);
       prompt.classList.toggle("has-kanji", showKanji);
-      prompt.innerHTML = `${showKanji ? `<span class="prompt-kanji">${displayHtml(item.display, item.ruby)}</span>` : ""}${promptProgressHtml(item.text, item.kind, active.session.progress())}`;
+      prompt.innerHTML = `${showKanji ? `<span class="prompt-kanji">${displayHtml(item.display, item.ruby, item.displayLines)}</span>` : ""}${promptProgressHtml(item.text, item.kind, active.session.progress(), item.kanaLines)}`;
     }
     if (furigana) {
       furigana.textContent = item.kind === "letter" ? (NYUMON_WORDS.furigana[item.text] || "") : (item.source || "");
@@ -406,6 +432,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (progress) {
       const dots = active.config.seconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
       progress.textContent = active.config.seconds ? `${active.completedItems}問 おわった` : `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
+      if (active.config.presentation === "literature") progress.textContent = UI_TEXT.literature.part.replace("{title}", item.workTitle || active.config.title).replace("{index}", String((item.partIndex || 0) + 1)).replace("{total}", String(item.partTotal || active.items.length));
     }
     if (stats) {
       const acc = Math.round(summary.accuracy * 100);
@@ -452,7 +479,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
       : "";
     const resultData = state.resultData || {};
-    const advice = state.config.screen === "S2" ? LearningManager.advice(summary, state.config.contentStageId || state.config.stageId) : null;
+    const advice = state.config.screen === "S2" && state.config.advice !== false ? LearningManager.advice(summary, state.config.contentStageId || state.config.stageId) : null;
     const speedHtml = isJissen
       ? `<div class="result-speed">
           ${Number.isFinite(resultData.score) ? `<div><span>スコア</span><strong>${resultData.score}</strong></div>` : ""}
@@ -811,6 +838,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       correct: summary.correct, miss: summary.miss, acc: summary.accuracy, rhythm: summary.rhythm,
       maxCombo: summary.maxCombo, words: run.completedItems, keyStats: summary.keyStats,
       stageId: run.config.stageId, purpose: run.config.purpose || "practice", lessonId: run.config.lessonId || "",
+      literatureId: !aborted && !run.config.seconds && run.completedItems === run.items.length ? run.config.literatureId || "" : "",
       readings: run.completedTexts.filter((text) => LearningManager.readingEntries().some((item) => item.kana === text)),
       delivered: run.config.presentation === "courier" ? run.completedItems : 0,
       ...(run.mode === "jissen" ? { kpm: summary.kpm } : {})

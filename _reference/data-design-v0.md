@@ -107,3 +107,15 @@ GAME_DATAにreplay:{version,maxDeliveries}、journey:{deliveriesPerScene,cleanDe
 装備は所持とslotを照合し、欠損時は初期3点へ補う。リプレイは各便の直近完了1回。v/seed/識別子/非負得点/昇順の時刻/上限/便の時間内を検査し、異なる内容の旧リプレイは除外する。timesは一時停止を除くミリ秒で、打鍵列・名前は含まない。先生モードのsaveCourierReplay/equipOutfit/報酬付与もSaveManager中央ゲートで書かない。
 
 共通お題コードは`ND{version}-{course序数}-{seedの36進}-{内容識別子}-{誤記チェック}`。識別子とチェックはFNV-1aの36進表現で、暗号・認証ではない。コース・語彙・ガイド・採点・移動・分かれ道・ローマ字・お題間遷移を識別対象にする。ルールを互換性なく変えるときはreplay.versionも上げる。保存・復元のかな合言葉は別形式のまま。
+
+## v1.12.0 作品データと保存
+
+LITERATURE_DATAはunlockDan/guideLevel/extentReadings、courses:[{id,label,reading,desc,seconds}]、works:[{id,course,title,titleReading,author,authorReading,death,extent,audit,note,sourceUrl?,useReview?,passages}]。
+passagesは既存の`{ref:"MICHI_KAGE",starts:"一意のkana接頭辞"}`参照、または`{kana,display,source,ruby,kanaLines?,displayLines?}`。参照先の本文は変更しない。auditはapproved/pending、useReviewがある作品は出題しない。繰り返しを持つ詩の作品内重複は意図的に保持する。
+改行配列は本文連結に一致し、かなユニットとルビの途中で切らない。新規本文は出典・作者・没年・kana/displayの監査表をNOTESへ記載し、発注者確認までpendingのまま保持する。
+
+```js
+{ learning: { books: {neko: {date: "2026-10-03", accuracy: 0.98}} } }
+```
+
+session_endはpurpose:literature/id:literature:作品id:readまたはtimed。時間なし収録完了時のみliteratureIdを渡す。booksはapproved作品ID、有効な日付書式と0〜1の正確率を正規化する。中断/時間制は完了記録なし、先生は保存中央ゲートで全進捗不変。詳細は完全バックアップで移す。

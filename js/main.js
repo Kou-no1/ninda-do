@@ -1,4 +1,4 @@
-const APP_VERSION = "1.11.0";
+const APP_VERSION = "1.12.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -40,7 +40,7 @@ const UI_TEXT = globalThis.UI_TEXT = {
   observation: { title: "先生の運指かくにん表", note: "アプリがわかるのは、キーの正しさです。指のつかい方は、先生が目でかくにんします。このチェックは児童の進み具合に保存しません。", print: "かくにん表をいんさつする" },
   growth: { title: "修行のあゆみ", empty: "修行をおえると、ここに記録がのこるよ。", date: "日", stage: "修行", accuracy: "正確率", rhythm: "気配", combo: "最大連撃", compare: "まえの自分とくらべる", points: "ポイント", improved: "よくなったキー" },
   learning: {
-    title: "修行帳", today: "きょうの修行", tabs: { today: "きょう", mini: "小修行", missions: "任務", keys: "キー", reading: "読書", lessons: "課題", wardrobe: "身じたく", shared: "同じお題" },
+    title: "修行帳", today: "きょうの修行", tabs: { today: "きょう", mini: "小修行", missions: "任務", keys: "キー", reading: "読書", literature: "書庫", lessons: "課題", wardrobe: "身じたく", shared: "同じお題" },
     planNames: { review: "ならった型を、もういちど", practice: "つづきの型を、たしかめる", mini: "にがてを、ひとつずつ" },
     chooseDrill: "小修行をえらぶ", questions: "問", review: "おさらい", small: "小修行", back: "修行帳へ", accuracy: "正確率",
     noPenalty: "休んでも、手に入れた灯りは消えません。自分のペースで、つづけよう。",
@@ -56,6 +56,7 @@ const UI_TEXT = globalThis.UI_TEXT = {
     invalidStage: "級をえらびなおしてね。", invalidLesson: "忍打道の課題ファイルをえらんでね。", invalidTitle: "課題の名まえは、40文字までで書いてね。", invalidItem: "お題をたしかめてね。", lockedKeys: "まだならっていないキーがあります。", lockedKana: "まだならっていないかながあります。", rightsRequired: "お題の重なりと、使ってよい文かをたしかめてね。", fileLarge: "課題ファイルが大きすぎます。"
   },
   readability: { title: "読みやすさ", size: "文字を大きく", spacing: "行の間をひろく", symbols: "ゆびの記号も見せる", motion: "動きをひかえる", teacherLessons: "先生の課題巻物をつくる" },
+  literature: { title: "<ruby>名文<rt>めいぶん</rt></ruby>アドバンスド", courses: "名文のコース", works: "作品・ぬきがき", parts: "問", author: "作者", allAuthors: "すべての作者", locked: "じょうにんになると、めいぶんのしゅぎょうがひらきます。", read: "おわりまでうつ", readDesc: "じかんを気にせず、入っている文を順にうつ。", timed: "タイムアタック", timedDesc: "同じ作品のことばで、じかんをきめて修行する。", seconds: "びょう", back: "書庫へもどる", finished: "収録ぶんをうちきった", notFinished: "まだうちきっていません", result: "名文の修行の記録", bookRecords: "作品のあゆみ", noBooks: "書庫で文をうちきると、作品の記録がのこります。", part: "{title} ／ {index} / {total}", untimed: "時間なし ／ ローマ字ガイド", unlockLabel: "上忍から", catalog: "4つのコース ／ 作品をえらぶ" },
   coach: { title: "ししょうのひとこと", pair: "{a}と{b}のばしょを、ゆびでたしかめよう。うったら、かまえにもどそう。", key: "{key}のばしょを、もういちどたしかめよう。あわてず、正しい指でうとう。", calm: "正しく、ひと打ちずつうてたね。つぎも、ゆびとかまえをたしかめよう。", action: "この小修行をする", review: "この型をおさらいする" },
   wardrobe: { title: "忍者の身じたく", slots: { head: "ずきん", belt: "おび", bag: "巻物ぶくろ" }, equipped: "身につけています", equip: "身につける", locked: "まだ修行中", preview: "先生プレビュー", note: "身じたくで点数や速さは変わりません。手に入れたものは、休んでもなくなりません。", avatar: "身じたくをした忍者" },
   shared: { title: "共通お題の合言葉", create: "合言葉をつくる", course: "便", seed: "お題の番号", code: "合言葉", import: "合言葉をたしかめる", start: "この道ではじめる", select: "コピー用にえらぶ", invalid: "合言葉がちがうみたい。ぜんぶ入っているか、たしかめてね。", outdated: "お題の版がちがいます。今の版で合言葉をつくりなおしてね。", note: "同じ合言葉なら、お題の順も同じです。記録はこの端末だけにのこり、どこにも送りません。", locked: "この便の段位になると、はじめられます。", result: "今回の合言葉", generated: "合言葉をつくりました。", same: "共通お題" },
@@ -321,6 +322,7 @@ const NindaApp = globalThis.NindaApp = (function () {
             return;
           }
           if (menu.kind === "courier") { NinjaGameManager.openCourses(); return; }
+          if (menu.kind === "literature") { LiteratureManager.open(); return; }
           closeMenuModal(false);
           ExamManager.startJissen(menu.id);
         }
@@ -493,6 +495,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   }
 
   function jissenMeta(menu) {
+    if (menu.kind === "literature") return UI_TEXT.literature.catalog;
     if (menu.kind === "courier") return `${GAME_DATA.courses.length}${UI_TEXT.courier.courses}`;
     if (menu.kind === "banzuke") return `${RANK_DATA.banzuke.seconds}びょう ／ ${RANK_DATA.banzuke.courses.length}つの道`;
     if (menu.seconds) return `${menu.seconds}びょう`;

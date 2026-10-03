@@ -31,6 +31,7 @@ const FILES = [
   "data/words/michi-jonin.js",
   "data/words/michi-tokujonin.js",
   "data/words/michi-kage.js",
+  "data/literature-data.js",
   "js/input-engine.js",
   "js/achievement-manager.js"
 ];
@@ -420,6 +421,54 @@ for (const item of game.outfits) {
 for (const course of game.courses) {
   ok(validDanIds.has(course.dan) && course.seconds > 0 && course.minLength > 0 && course.maxLength >= course.minLength, `NG [courier:${course.id}] 条件が不正です`);
   ok(DAN_WORDS.words.filter((word) => word.length >= course.minLength && word.length <= course.maxLength).length >= 5, `NG [courier:${course.id}] 語彙不足です`);
+}
+
+const literature = context.LITERATURE_DATA;
+ok(validDanIds.has(literature.unlockDan) && Number.isInteger(literature.guideLevel) && literature.guideLevel >= 0 && literature.guideLevel <= 3, "NG [literature] 解放・ガイド設定が不正です");
+ok(literature.courses.length === 4 && uniqueItems(literature.courses.map((course) => course.id)), "NG [literature] 4コースのIDが不正です");
+ok(uniqueItems(literature.works.map((work) => work.id)), "NG [literature] 作品IDが重複しています");
+for (const course of literature.courses) {
+  ok(course.label && course.reading && course.desc && course.seconds > 0, `NG [literature:${course.id}] コース設定が不正です`);
+  ok(literature.works.some((work) => work.course === course.id && work.audit === "approved"), `NG [literature:${course.id}] 監査済み作品がありません`);
+}
+for (const work of literature.works) {
+  const id = `literature:${work.id}`;
+  ok(literature.courses.some((course) => course.id === work.course), `NG [${id}] コース参照が不正です`);
+  ["id", "title", "titleReading", "author", "authorReading", "extent", "note"].forEach((key) => ok(typeof work[key] === "string" && work[key].trim(), `NG [${id}] ${key} が空です`));
+  ok(typeof literature.extentReadings[work.extent] === "string" && literature.extentReadings[work.extent].trim(), `NG [${id}] 収録範囲のよみがありません`);
+  ok(["approved", "pending"].includes(work.audit) && !(work.audit === "approved" && work.useReview), `NG [${id}] 未確認の利用条件で公開できません`);
+  ok(work.death === "古典" || work.death === "伝承" || Number.isInteger(work.death) && work.death <= 1950, `NG [${id}] 作者の没年・区分が不正です`);
+  ok(Array.isArray(work.passages) && work.passages.length > 0, `NG [${id}] 収録文がありません`);
+  for (const [index, entry] of work.passages.entries()) {
+    const matches = entry.ref ? context[entry.ref]?.items.filter((item) => item.kana.startsWith(entry.starts)) : [entry];
+    ok(matches?.length === 1, `NG [${id}:${index + 1}] 元の名文を一意に参照できません`);
+    const item = matches?.[0];
+    if (!item) continue;
+    ok(typeof item.kana === "string" && kanaRe.test(item.kana) && item.kana.length <= 120, `NG [${id}:${index + 1}] かな・文長が不正です`);
+    ok(typeof item.display === "string" && item.display && typeof item.source === "string" && item.source, `NG [${id}:${index + 1}] 原文・出典が空です`);
+    ok(InputEngine.isTypeable(item.kana, new Set(Object.keys(FINGER_DATA.keys).filter((key) => !FINGER_DATA.keys[key].displayOnly))), `NG [${id}:${index + 1}] 入力経路がありません`);
+    ok(Array.isArray(item.ruby) && item.ruby.every((part) => Array.isArray(part) && (part.length === 1 || part.length === 2)
+      && part.every((value) => typeof value === "string" && value)) && item.ruby.map((part) => part[0]).join("") === item.display, `NG [${id}:${index + 1}] ルビが原文と一致しません`);
+    for (const [field, text] of [["kanaLines", item.kana], ["displayLines", item.display]]) {
+      if (!item[field]) continue;
+      ok(Array.isArray(item[field]) && item[field].length <= 3 && item[field].every((line) => typeof line === "string" && line) && item[field].join("") === text,
+        `NG [${id}:${index + 1}] ${field} が本文と一致しません`);
+      if (!Array.isArray(item[field])) continue;
+      let offset = 0;
+      const boundaries = item[field].slice(0, -1).map((line) => (offset += line.length));
+      offset = 0;
+      if (field === "kanaLines") {
+        const ends = InputEngine.segment(text).map((unit) => (offset += unit.kana.length));
+        ok(boundaries.every((boundary) => ends.includes(boundary)), `NG [${id}:${index + 1}] 改行が入力ユニットを分断しています`);
+      } else if (Array.isArray(item.ruby)) {
+        for (const part of item.ruby) {
+          if (!Array.isArray(part) || typeof part[0] !== "string") continue;
+          const start = offset; offset += part[0].length;
+          ok(part.length !== 2 || boundaries.every((boundary) => boundary <= start || boundary >= offset), `NG [${id}:${index + 1}] 改行がルビを分断しています`);
+        }
+      }
+    }
+  }
 }
 
 if (errors.length) {
