@@ -166,6 +166,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       if (result === "done") {
         run.transitioning = true;
         run.completedItems += 1;
+        run.completedTexts.push(run.items[run.index].text);
+        if (run.config.onItemComplete) run.config.onItemComplete(run.items[run.index], run);
         updateUi();
         run.transitionTimer = window.setTimeout(() => {
           if (active !== run || run.complete) return;
@@ -191,6 +193,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       items,
       guideLevel: stage.type === "nyumon" ? 3 : stage.guideLevelTraining,
       mode: "training",
+      purpose: menuIndex === "review" ? "review" : "practice",
       retry() { start(stageId, menuIndex); },
       onComplete(summary, state) {
         if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
@@ -225,7 +228,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       complete: false,
       transitioning: false,
       completedItems: 0,
-      persisted: { correct: 0, miss: 0, words: 0, keyStats: {} },
+      completedTexts: [],
+      persisted: { correct: 0, miss: 0, words: 0, keyStats: {}, unitStats: {}, confusions: {} },
       previousRecord: SaveManager.ensure().eventLog.slice().reverse().find((entry) => entry.type === "session_end" && entry.completed && entry.id === (config.recordId || config.stageId)),
       comboDisplay: 0,
       comboFading: false,
@@ -238,9 +242,13 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     const playScreen = document.getElementById(config.screen);
     if (playScreen) playScreen.classList.toggle("shingan-mode", config.guideLevel === 0);
     clearComboFx();
+    const courier = byId("courierMount");
+    if (courier) { courier.innerHTML = ""; courier.hidden = true; }
+    if (playScreen) playScreen.classList.toggle("courier-mode", config.presentation === "courier");
     ["trainingStats", "examStats"].forEach((id) => { const element = byId(id); if (element) element.innerHTML = ""; });
     mountTitle(config);
     clearResult();
+    if (config.onStart) config.onStart(active);
     if (config.seconds) {
       const run = active;
       active.timer = window.setInterval(() => {
@@ -289,6 +297,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       }
     }
     const item = active.items[active.index];
+    if (active.config.onItemStart) active.config.onItemStart(item, active);
     active.session = InputEngine.start(item.text, { guideLevel: active.guideLevel, mode: active.mode });
     const run = active;
     active.session.onEvent((event) => {
@@ -388,7 +397,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     GuideRenderer.render(guide, {
       guideLevel: active.guideLevel,
       expectedKeys: active.session.nextExpectedKeys(),
-      rescue: active.rescue
+      rescue: active.rescue,
+      fingerSymbols: SaveManager.ensure().settings.fingerSymbols
     });
     if (progress) {
       const dots = active.config.seconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
@@ -406,6 +416,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       }
       stats.innerHTML = parts.join(" ");
     }
+    if (active.config.onUpdate) active.config.onUpdate(summary, active);
   }
 
   function completeRunner() {
@@ -461,6 +472,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         ${speedHtml}
         ${weakKeysHtml(summary)}
         ${growthHtml(summary, state.previousRecord)}
+        ${resultData.detail ? `<p class="result-game-detail">${escapeHtml(resultData.detail)}</p>` : ""}
         ${parsed.rest ? `<div class="result-message">${parsed.rest}</div>` : ""}
         ${teacherNote}
       </div>`;
@@ -742,6 +754,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     cleanupComboTimer();
     cleanupItemTimers();
     clearComboFx();
+    const courier = byId("courierMount");
+    if (courier) { courier.innerHTML = ""; courier.hidden = true; }
     closeModal(false);
     document.querySelectorAll(".play-screen").forEach((screen) => screen.classList.remove("shingan-mode"));
     active = null;
@@ -780,15 +794,22 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         recent: attempts ? stat.recent.slice(-Math.min(attempts, 20)) : [] };
     });
     const delta = Object.assign({}, summary, { correct: summary.correct - before.correct, miss: summary.miss - before.miss, keyStats });
+    delta.unitStats = Object.fromEntries(Object.entries(summary.unitStats || {}).map(([unit, stat]) => [unit, {
+      attempts: stat.attempts - (before.unitStats[unit]?.attempts || 0), misses: stat.misses - (before.unitStats[unit]?.misses || 0)
+    }]));
+    delta.confusions = Object.fromEntries(Object.entries(summary.confusions || {}).map(([pair, count]) => [pair, count - (before.confusions[pair] || 0)]));
     const event = partial ? null : {
       id: run.config.recordId || run.config.stageId || "dan", mode: run.mode, completed: !aborted,
       correct: summary.correct, miss: summary.miss, acc: summary.accuracy, rhythm: summary.rhythm,
       maxCombo: summary.maxCombo, words: run.completedItems, keyStats: summary.keyStats,
+      stageId: run.config.stageId, purpose: run.config.purpose || "practice", lessonId: run.config.lessonId || "",
+      readings: run.completedTexts.filter((text) => LearningManager.readingEntries().some((item) => item.kana === text)),
+      delivered: run.config.presentation === "courier" ? run.completedItems : 0,
       ...(run.mode === "jissen" ? { kpm: summary.kpm } : {})
     };
     SaveManager.addSessionSummary(run.config.stageId, delta, run.completedItems - before.words,
       { partial: partial || aborted, event });
-    run.persisted = { correct: summary.correct, miss: summary.miss, words: run.completedItems, keyStats: summary.keyStats };
+    run.persisted = { correct: summary.correct, miss: summary.miss, words: run.completedItems, keyStats: summary.keyStats, unitStats: summary.unitStats, confusions: summary.confusions };
     if (!partial) SaveManager.flush();
   }
 

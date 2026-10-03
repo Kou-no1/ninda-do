@@ -11,6 +11,8 @@ const FILES = [
   "data/nickname-data.js",
   "data/curriculum-data.js",
   "data/rank-data.js",
+  "data/learning-data.js",
+  "data/game-data.js",
   "data/words/nyumon-words.js",
   "data/words/kyu10-words.js",
   "data/words/kyu9-words.js",
@@ -376,6 +378,32 @@ for (const item of mustCases) {
   }
 }
 checkGuideFollow("asdf", "asdf", "asdf");
+
+const learning = context.LEARNING_DATA;
+ok(Array.isArray(learning.review.intervals) && learning.review.intervals.every((day, i, days) => Number.isInteger(day) && day > 0 && (!i || day > days[i - 1])), "NG [learning:review] 復習間隔が不正です");
+ok(learning.review.accuracy > 0 && learning.review.accuracy <= 1 && learning.review.count > 0, "NG [learning:review] 合格基準が不正です");
+const missionIds = new Set();
+for (const mission of learning.missions) {
+  ok(!missionIds.has(mission.id) && (!mission.after || missionIds.has(mission.after)), `NG [mission:${mission.id}] 順序・参照が不正です`);
+  ok(["practice", "review", "calm", "reading", "delivered"].includes(mission.goal) && Number.isInteger(mission.n) && mission.n > 0, `NG [mission:${mission.id}] 条件が不正です`);
+  ok(!mission.unlockDan || validDanIds.has(mission.unlockDan), `NG [mission:${mission.id}] 段位参照が不正です`);
+  ["title", "story", "reward"].forEach((field) => ok(typeof mission[field] === "string" && mission[field].trim(), `NG [mission:${mission.id}] ${field} が空です`));
+  missionIds.add(mission.id);
+}
+for (const drill of learning.drills) ok(drill.id && drill.label && drill.desc && drill.count > 0, `NG [drill:${drill.id}] 設定が不正です`);
+for (const course of RANK_DATA.banzuke.courses) {
+  for (const entry of context[course.wordsRef].items.filter((item) => item && item.genre)) {
+    ok(typeof learning.readingNotes[entry.source] === "string" && learning.readingNotes[entry.source].trim(), `NG [reading:${entry.source}] 解説がありません`);
+  }
+}
+const game = context.GAME_DATA;
+ok(Number.isInteger(game.guideLevel) && game.guideLevel >= 0 && game.guideLevel <= 3, "NG [courier] ガイドが不正です");
+ok(game.scoring.delivery > 0 && game.scoring.fastBonus >= 0 && game.travel.baseSeconds > 0 && game.travel.secondsPerKey > 0, "NG [courier] 点数・移動時間が不正です");
+ok(new Set(game.courses.map((course) => course.id)).size === game.courses.length, "NG [courier] 便のIDが重複しています");
+for (const course of game.courses) {
+  ok(validDanIds.has(course.dan) && course.seconds > 0 && course.minLength > 0 && course.maxLength >= course.minLength, `NG [courier:${course.id}] 条件が不正です`);
+  ok(DAN_WORDS.words.filter((word) => word.length >= course.minLength && word.length <= course.maxLength).length >= 5, `NG [courier:${course.id}] 語彙不足です`);
+}
 
 if (errors.length) {
   console.error(errors.join("\n"));

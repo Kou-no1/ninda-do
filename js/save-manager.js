@@ -39,11 +39,14 @@ const SaveManager = globalThis.SaveManager = (function () {
       equippedNickname: "",
       totals: { keys: 0, correct: 0, miss: 0, words: 0 },
       keyStats: {},
+      unitStats: {},
+      confusions: {},
+      learning: LearningManager.emptyState(),
       examAttempts: {},
       weakTargets: [],
-      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {} },
+      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {}, courier: {} },
       streak: { last: "", days: 0 },
-      settings: { se: true, voice: true, display: "night", teacherMode: false, kanjiDisplay: true },
+      settings: { se: true, voice: true, display: "night", teacherMode: false, kanjiDisplay: true, textSize: "normal", lineSpacing: "normal", fingerSymbols: false, reduceMotion: false },
       eventLog: []
     };
   }
@@ -110,7 +113,19 @@ const SaveManager = globalThis.SaveManager = (function () {
       RANK_DATA.banzuke.courses.some((course) => course.id === id) && record && Number.isFinite(record.score) && record.score >= 0
       && RANK_DATA.banzuke.tierOrder.includes(record.tier) && /^\d{4}-\d{2}-\d{2}$/.test(record.date || "")));
     merged.settings.display = merged.settings.display === "light" ? "light" : "night";
-    ["se", "voice", "teacherMode", "kanjiDisplay"].forEach((key) => { merged.settings[key] = typeof merged.settings[key] === "boolean" ? merged.settings[key] : defaultSettings[key]; });
+    ["se", "voice", "teacherMode", "kanjiDisplay", "fingerSymbols", "reduceMotion"].forEach((key) => { merged.settings[key] = typeof merged.settings[key] === "boolean" ? merged.settings[key] : defaultSettings[key]; });
+    merged.settings.textSize = merged.settings.textSize === "large" ? "large" : "normal";
+    merged.settings.lineSpacing = merged.settings.lineSpacing === "wide" ? "wide" : "normal";
+    merged.learning = LearningManager.normalizeState(save.learning);
+    merged.unitStats = Object.fromEntries(Object.entries(save.unitStats || {}).filter(([unit, stat]) =>
+      (ROMAJI_TABLE[unit] || FINGER_DATA.keys[unit]) && stat && typeof stat === "object").map(([unit, stat]) =>
+      [unit, { attempts: number(stat.attempts), misses: Math.min(number(stat.attempts), number(stat.misses)) }]));
+    merged.confusions = Object.fromEntries(Object.entries(save.confusions || {}).filter(([pair]) =>
+      /^[a-z.,-]>[a-z.,-]$/.test(pair) && FINGER_DATA.keys[pair[0]] && FINGER_DATA.keys[pair[2]])
+      .map(([pair, count]) => [pair, number(count)]));
+    merged.best.courier = Object.fromEntries(Object.entries(save.best && save.best.courier || {}).filter(([id, record]) =>
+      GAME_DATA.courses.some((course) => course.id === id) && record && Number.isFinite(record.score) && record.score >= 0
+      && Number.isInteger(record.words) && record.words >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(record.date || "")));
     merged.streak = { last: /^\d{4}-\d{2}-\d{2}$/.test(merged.streak.last || "") ? merged.streak.last : "", days: number(merged.streak.days) };
     merged.keyStats = Object.fromEntries(Object.entries(merged.keyStats).filter(([key, stat]) => FINGER_DATA.keys[key] && stat && typeof stat === "object")
       .map(([key, stat]) => [key, { attempts: number(stat.attempts), misses: Math.min(number(stat.misses), number(stat.attempts)), sumLatency: number(stat.sumLatency), recent: Array.isArray(stat.recent) ? stat.recent.filter((hit) => typeof hit === "boolean").slice(-20) : [] }]));
@@ -218,12 +233,20 @@ const SaveManager = globalThis.SaveManager = (function () {
       if (summary.rhythm && summary.rhythm !== "—") saveData.best.rhythm = betterRhythm(saveData.best.rhythm, summary.rhythm);
       if (summary.maxCombo) saveData.best.combo = Math.max(saveData.best.combo || 0, summary.maxCombo);
       mergeKeyStats(saveData, summary.keyStats);
+      Object.entries(summary.unitStats || {}).forEach(([unit, value]) => {
+        const stat = saveData.unitStats[unit] || (saveData.unitStats[unit] = { attempts: 0, misses: 0 });
+        stat.attempts += value.attempts; stat.misses += value.misses;
+      });
+      Object.entries(summary.confusions || {}).forEach(([pair, count]) => { saveData.confusions[pair] = (saveData.confusions[pair] || 0) + count; });
       if (!(options && options.partial) && CURRICULUM_DATA.stages.some((stage) => stage.id === stageId)) addUnique(saveData.practicedStages, stageId);
       const practicedHits = options && options.event ? options.event.correct + options.event.miss : summary.correct + summary.miss;
       if (!(options && options.partial) && practicedHits > 0 && ["jissen", "banzuke"].includes(stageId) && saveData.dan !== "none") addUnique(saveData.practicedDans, saveData.dan);
       if (summary.correct + summary.miss > 0) updateStreak(saveData);
       MetricsEngine.weakKeys(saveData.keyStats, 5).filter((item) => item.missRate > 0.1).forEach((item) => addUnique(saveData.weakTargets, item.key));
-      if (options && options.event) appendEvent(saveData, "session_end", options.event);
+      if (options && options.event) {
+        LearningManager.applySession(saveData, options.event, todayJst());
+        appendEvent(saveData, "session_end", options.event);
+      }
     });
   }
 
@@ -337,6 +360,8 @@ const SaveManager = globalThis.SaveManager = (function () {
   function setSetting(key, value) {
     return update((saveData) => {
       if (key === "display") saveData.settings.display = value === "light" ? "light" : "night";
+      else if (key === "textSize") saveData.settings.textSize = value === "large" ? "large" : "normal";
+      else if (key === "lineSpacing") saveData.settings.lineSpacing = value === "wide" ? "wide" : "normal";
       else if (key === "teacherMode") saveData.settings.teacherMode = !!value;
       else saveData.settings[key] = !!value;
     }, { allowTeacherWrite: true });
@@ -475,6 +500,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       || Object.entries(data.keyStats).some(([key, stat]) => !FINGER_DATA.keys[key] || !stat || ["attempts", "misses", "sumLatency"].some((field) => !Number.isFinite(stat[field]) || stat[field] < 0) || stat.misses > stat.attempts)
       || data.eventLog.some((entry) => !entry || !Number.isFinite(entry.ts) || typeof entry.type !== "string")) throw new Error("バックアップの記録がこわれています");
     const normalized = normalize(data);
+    if (data.learning && data.learning.lessonPack) LearningManager.parseLesson(data.learning.lessonPack);
     normalized.settings.teacherMode = false;
     return normalized;
   }
@@ -491,6 +517,14 @@ const SaveManager = globalThis.SaveManager = (function () {
     const stage = stages.find((item) => item.id === stageId);
     return !!stage && (isTeacherMode(data) || stage.type === "nyumon" || data.clearedStages.includes(stageId)
       || stages.findIndex((item) => item.id === stageId) <= stages.findIndex((item) => item.id === data.unlockedStage));
+  }
+
+  function updateCourierBest(courseId, score, words) {
+    const before = ensure().best.courier[courseId];
+    if (!GAME_DATA.courses.some((course) => course.id === courseId) || !Number.isInteger(score) || score < 0
+      || !Number.isInteger(words) || words < 0 || isTeacherMode() || before && score <= before.score) return { updated: false, best: before || null };
+    const saved = update((data) => { data.best.courier[courseId] = { score, words, date: todayJst() }; });
+    return { updated: true, best: saved.best.courier[courseId] };
   }
 
   return {
@@ -520,7 +554,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     restoreCode,
     reset,
     setSyncAdapter,
-    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked,
+    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked, updateCourierBest, day: todayJst,
     storageStatus: () => ({ persistent: !memoryOnly, warning: storageWarning })
   };
 })();

@@ -16,24 +16,30 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
       target.innerHTML = "";
       return;
     }
-    const keyboard = renderKeyboard(expectedKeys);
-    const hand = (guideLevel >= 3 || rescue) ? renderHands(expectedKeys) : "";
+    const keyboard = renderKeyboard(expectedKeys, options);
+    const hand = (guideLevel >= 3 || rescue) ? renderHands(expectedKeys, options && options.fingerSymbols) : "";
     target.innerHTML = keyboard + hand;
   }
 
-  function renderKeyboard(expectedKeys) {
+  function renderKeyboard(expectedKeys, options) {
     const expected = new Set(expectedKeys);
     return `<div class="keyboard" aria-label="画面キーボード">${ROWS.map((row) => {
       return `<div class="key-row">${row.map((key) => {
         const color = keyColor(key) || "var(--line)";
         const next = expected.has(key) ? " next" : "";
         const label = key === ";" ? ";" : key;
-        return `<div class="key${next}" data-key="${key}" style="border-color:${color}">${label}</div>`;
+        const info = FINGER_DATA.keys[key];
+        const symbol = options && options.fingerSymbols ? `<small class="finger-symbol">${FINGER_DATA.fingerSymbols[info.finger]}</small>` : "";
+        const stat = options && options.stats && options.stats[key];
+        const enough = stat && stat.attempts >= LEARNING_DATA.mastery.minAttempts;
+        const accuracy = enough ? 1 - stat.misses / stat.attempts : 0;
+        const mastery = options && options.mastery ? `<small class="key-mastery">${enough ? `${accuracy >= LEARNING_DATA.mastery.secure ? "○" : accuracy >= LEARNING_DATA.mastery.developing ? "△" : "・"} ${Math.round(accuracy * 100)}%` : "—"}</small>` : "";
+        return `<div class="key${next}" data-key="${key}" style="border-color:${color}" title="${FINGER_DATA.fingerLabels[info.finger]}"><span class="key-letter">${label}</span>${symbol}${mastery}</div>`;
       }).join("")}</div>`;
     }).join("")}</div>`;
   }
 
-  function renderHands(expectedKeys) {
+  function renderHands(expectedKeys, symbols) {
     const fingers = new Set(expectedKeys.map((key) => FINGER_DATA.keys[key] && FINGER_DATA.keys[key].finger).filter(Boolean));
     const fingerShapes = [
       ["L5", 85, 68, 30, 112], ["L4", 120, 46, 30, 134], ["L3", 155, 34, 30, 146], ["L2", 190, 54, 34, 126],
@@ -46,7 +52,7 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
         const active = fingers.has(id);
         const fill = active ? FINGER_DATA.fingerColors[id] : "transparent";
         const label = active ? FINGER_DATA.fingerLabels[id] : "";
-        return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="15" fill="${fill}" stroke="var(--tsuki)" stroke-width="${active ? 5 : 3}"/><title>${label}</title></g>`;
+        return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="15" fill="${fill}" stroke="var(--tsuki)" stroke-width="${active ? 5 : 3}"/><title>${label}</title>${symbols ? `<text x="${x + w / 2}" y="${y + 24}" text-anchor="middle" font-size="13" fill="${active ? "var(--sumi)" : "var(--tsuki)"}">${FINGER_DATA.fingerSymbols[id]}</text>` : ""}</g>`;
       }).join("")}
       <text x="154" y="210" text-anchor="middle" font-size="18" fill="var(--tsuki)">ひだり手</text>
       <text x="426" y="210" text-anchor="middle" font-size="18" fill="var(--tsuki)">みぎ手</text>
@@ -103,5 +109,9 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     return info ? FINGER_DATA.fingerColors[info.finger] : "";
   }
 
-  return { render, renderPoster };
+  function renderMastery(target, stats, fingerSymbols) {
+    target.innerHTML = renderKeyboard([], { stats, mastery: true, fingerSymbols });
+  }
+
+  return { render, renderPoster, renderMastery };
 })();

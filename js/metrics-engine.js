@@ -55,6 +55,8 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
       fudoUpdates: 0,
       rhythmUpdates: 0,
       keyStats: {},
+      unitStats: {},
+      confusions: {},
       lastTs: startedAt,
       combo: 0,
       maxCombo: 0
@@ -88,6 +90,15 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
         state.lastEventTs = state.lastTs;
 
         if (stat) stat.attempts += 1;
+        if (event.kana) {
+          const unit = state.unitStats[event.kana] || (state.unitStats[event.kana] = { attempts: 0, misses: 0 });
+          unit.attempts += 1;
+          if (!event.correct) unit.misses += 1;
+        }
+        if (!event.correct && expected && event.key && FINGER_DATA.keys[event.key]) {
+          const pair = `${expected}>${event.key}`;
+          state.confusions[pair] = (state.confusions[pair] || 0) + 1;
+        }
         if (event.correct) {
           state.correct += 1;
           state.combo += 1;
@@ -134,7 +145,9 @@ const MetricsEngine = globalThis.MetricsEngine = (function () {
           elapsedSeconds: seconds,
           combo: state.combo,
           maxCombo: state.maxCombo,
-          keyStats: this.keyStats()
+          keyStats: this.keyStats(),
+          unitStats: JSON.parse(JSON.stringify(state.unitStats)),
+          confusions: Object.assign({}, state.confusions)
         };
       },
       elapsedSeconds,

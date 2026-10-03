@@ -1,4 +1,4 @@
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.10.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -38,13 +38,31 @@ const UI_TEXT = globalThis.UI_TEXT = {
   returnFrontier: "つづきの修行",
   backup: { title: "ぜんぶの記録をバックアップ", export: "バックアップをとる", import: "ファイルからもどす", compare: "もどす前にかくにん", confirm: "この記録にもどす", cancel: "やめる", warning: "今の記録は、このファイルの記録に入れかわるよ。", saved: "記録をもどしたよ。", error: "ファイルをよめません。忍打道のバックアップをえらんでね。" },
   observation: { title: "先生の運指かくにん表", note: "アプリがわかるのは、キーの正しさです。指のつかい方は、先生が目でかくにんします。このチェックは児童の進み具合に保存しません。", print: "かくにん表をいんさつする" },
-  growth: { title: "修行のあゆみ", empty: "修行をおえると、ここに記録がのこるよ。", date: "日", stage: "修行", accuracy: "正確率", rhythm: "気配", combo: "最大連撃", compare: "まえの自分とくらべる", points: "ポイント", improved: "よくなったキー" }
+  growth: { title: "修行のあゆみ", empty: "修行をおえると、ここに記録がのこるよ。", date: "日", stage: "修行", accuracy: "正確率", rhythm: "気配", combo: "最大連撃", compare: "まえの自分とくらべる", points: "ポイント", improved: "よくなったキー" },
+  learning: {
+    title: "修行帳", today: "きょうの修行", tabs: { today: "きょう", mini: "小修行", missions: "任務", keys: "キー", reading: "読書", lessons: "課題" },
+    planNames: { review: "ならった型を、もういちど", practice: "つづきの型を、たしかめる", mini: "にがてを、ひとつずつ" },
+    chooseDrill: "小修行をえらぶ", questions: "問", review: "おさらい", small: "小修行", back: "修行帳へ", accuracy: "正確率",
+    noPenalty: "休んでも、手に入れた灯りは消えません。自分のペースで、つづけよう。",
+    noPair: "とりちがえの記録は、まだありません。", notLearned: "このかなをならうと、ひらきます。",
+    missions: "任務帳", nextStory: "ひとつ前の任務をおえると、お話がひらきます。",
+    goalNames: { practice: "正確率{accuracy}%以上の修行", review: "おさらい", calm: "気配が静・不動の修行", reading: "読んだ名文", delivered: "とどけた巻物" },
+    keys: "キーの習熟図", keyLegend: "○ {secure}%以上 ／ △ {developing}%以上 ／ ・ もうひと修行 ／ — 記録が少ない",
+    fingersHonest: "ここでわかるのは、キーの正確率です。正しい指でうてているかは、自分と先生でたしかめよう。",
+    reading: "名文の読書帳", readingEmpty: "実戦や番付で名文をひとつうちおえると、ここで読めます。", preview: "先生プレビュー",
+    lessons: "課題巻物", import: "課題ファイルをひらく", lessonEmpty: "先生からもらった課題ファイルをえらんでね。", start: "課題をはじめる", completed: "うちおえた課題", stageLocked: "この級の型をならうと、はじめられます。",
+    create: "先生の課題づくり", lessonTitle: "課題の名まえ", stage: "級", kind: "お題のしゅるい", items: "お題（1行にひとつ）", rights: "自分で作った文、または使ってよい文です。", export: "課題ファイルをつくる", exported: "課題ファイルをつくりました。児童の記録は変わりません。",
+    kindNames: { letter: "もじ", in: "いん", word: "ことば", sentence: "文" }, demo: "記録せずためす", accept: "この課題に入れかえる", cancel: "やめる",
+    invalidStage: "級をえらびなおしてね。", invalidLesson: "忍打道の課題ファイルをえらんでね。", invalidTitle: "課題の名まえは、40文字までで書いてね。", invalidItem: "お題をたしかめてね。", lockedKeys: "まだならっていないキーがあります。", lockedKana: "まだならっていないかながあります。", rightsRequired: "お題の重なりと、使ってよい文かをたしかめてね。", fileLarge: "課題ファイルが大きすぎます。"
+  },
+  readability: { title: "読みやすさ", size: "文字を大きく", spacing: "行の間をひろく", symbols: "ゆびの記号も見せる", motion: "動きをひかえる", teacherLessons: "先生の課題巻物をつくる" },
+  courier: { seconds: "びょう", best: "じこベスト", locked: "に昇段するとひらく", back: "もどる", choose: "便をえらぶ", courses: "つの便", delivered: "とどけた巻物", fast: "門に着く前にとどけた巻物", points: "荷物点", waiting: "門でまっています。つづきをうとう。", onWay: "巻物をはこんでいます。", scene: "月の下で、忍者が巻物をはこぶ里の道" }
 };
 
 const NindaApp = globalThis.NindaApp = (function () {
   "use strict";
 
-  const screens = ["S0", "S1", "S2", "S3", "S4", "S5", "S6"];
+  const screens = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"];
   let currentScreen = "S0";
   let teacherStageId = "";
   let teacherDanTargetId = "";
@@ -60,6 +78,9 @@ const NindaApp = globalThis.NindaApp = (function () {
     const logo = byId("logoMount");
     if (logo) logo.innerHTML = SVG_ICONS.logo();
     wireNavigation();
+    byId("notebookButton").textContent = UI_TEXT.learning.title;
+    byId("notebookTitle").textContent = UI_TEXT.learning.title;
+    byId("todayButton").textContent = UI_TEXT.learning.today;
     wireEntry();
     wireImeGuard();
     wireEscape();
@@ -98,6 +119,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     });
     byId("jissenButton").addEventListener("click", openJissenMenu);
     byId("frontierButton").addEventListener("click", () => openStageMenu(SaveManager.ensure().unlockedStage));
+    byId("todayButton").addEventListener("click", () => LearningManager.open("today"));
   }
 
   function wireEntry() {
@@ -197,6 +219,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     if (id === "S4" && CollectionRenderer.render) CollectionRenderer.render("scrolls");
     if (id === "S5" && CollectionRenderer.renderLicense) CollectionRenderer.renderLicense();
     if (id === "S6" && CollectionRenderer.renderSettings) CollectionRenderer.renderSettings();
+    if (id === "S7") LearningManager.render();
     const firstButton = byId(id) && byId(id).querySelector("button, input");
     if (firstButton) window.setTimeout(() => {
       if (currentScreen === id && byId("resultOverlay").hidden && byId("menuOverlay").hidden && byId("imeOverlay").hidden) firstButton.focus();
@@ -294,6 +317,7 @@ const NindaApp = globalThis.NindaApp = (function () {
             openBanzukeCourseMenu();
             return;
           }
+          if (menu.kind === "courier") { NinjaGameManager.openCourses(); return; }
           closeMenuModal(false);
           ExamManager.startJissen(menu.id);
         }
@@ -466,6 +490,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   }
 
   function jissenMeta(menu) {
+    if (menu.kind === "courier") return `${GAME_DATA.courses.length}${UI_TEXT.courier.courses}`;
     if (menu.kind === "banzuke") return `${RANK_DATA.banzuke.seconds}びょう ／ ${RANK_DATA.banzuke.courses.length}つの道`;
     if (menu.seconds) return `${menu.seconds}びょう`;
     if (menu.items) return `${menu.items}語`;
@@ -624,6 +649,10 @@ const NindaApp = globalThis.NindaApp = (function () {
     document.body.dataset.theme = save && save.settings && save.settings.display === "light" ? "light" : "night";
     const teacher = !!(save && save.settings && save.settings.teacherMode);
     document.body.dataset.teacherMode = teacher ? "true" : "false";
+    const settings = save && save.settings || {};
+    document.body.dataset.textSize = settings.textSize || "normal";
+    document.body.dataset.lineSpacing = settings.lineSpacing || "normal";
+    document.body.dataset.reduceMotion = settings.reduceMotion ? "true" : "false";
     if (!teacher) {
       teacherStageId = "";
       teacherDanTargetId = "";
@@ -642,6 +671,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     openStageMenu,
     openJissenMenu,
     openBanzukeCourseMenu,
+    openMenuModal,
     closeMenuModal,
     applyTheme,
     currentScreen() { return currentScreen; }

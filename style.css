@@ -447,9 +447,9 @@ button.map-node.dan { cursor: pointer; }
   background: var(--paper);
   color: var(--sumi);
   box-shadow: var(--shadow);
-  font-size: var(--prompt-size, clamp(48px, 6vw, 72px));
+  font-size: calc(var(--prompt-size, clamp(48px, 6vw, 72px)) * var(--reading-scale, 1));
   font-weight: 800;
-  line-height: 1.3;
+  line-height: var(--prompt-leading, 1.3);
   padding: 12px 18px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -461,7 +461,7 @@ button.map-node.dan { cursor: pointer; }
   display: block;
   width: 100%;
   color: rgba(42, 38, 34, 0.85);
-  font-size: var(--kanji-size, 28px);
+  font-size: calc(var(--kanji-size, 28px) * var(--reading-scale, 1));
   font-weight: 700;
   line-height: 1.55;
   text-align: center;
@@ -1223,8 +1223,83 @@ th, td { border-bottom: 1px solid rgba(42, 38, 34, 0.2); padding: 7px 10px; over
   .banzuke-tier .tier-badge { width: 52px; height: 52px; }
 }
 
+.learning-mount { max-width: 980px; margin: 24px auto; }
+.learning-tabs { flex-wrap: wrap; }
+.learning-list { display: grid; gap: 12px; }
+.learning-item { display: flex; gap: 18px; align-items: center; min-height: 104px; text-align: left; background: var(--surface); border-color: var(--line); color: var(--tsuki); }
+.learning-item > span:last-child { min-width: 0; }
+.learning-item strong, .learning-item span span, .learning-item small { display: block; }
+.learning-item strong { font-size: 20px; margin-bottom: 5px; }
+.learning-item small { color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.learning-icon { flex: 0 0 52px; }
+.learning-icon svg { width: 52px; height: 52px; }
+.learning-note { color: var(--muted); line-height: 1.8; }
+.mission-entry { display: flex; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.mission-entry h3 { margin: 0; }
+.mission-entry p { line-height: 1.8; }
+.mission-entry small { color: var(--muted); }
+.mission-light { flex: 0 0 48px; color: var(--muted); --chochin: var(--muted); opacity: 0.55; }
+.mission-light svg { width: 48px; height: 48px; }
+.mission-entry.earned .mission-light { color: var(--kin); --chochin: var(--kin); opacity: 1; }
+.mastery-keyboard .key { width: 68px; height: 80px; gap: 5px; flex-direction: column; }
+.key-letter { display: block; }
+.key { position: relative; }
+.finger-symbol { font-size: 10px; line-height: 1; color: var(--muted); }
+.key-mastery { font-size: 11px; color: var(--tsuki); white-space: nowrap; }
+.reading-entry { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.reading-entry summary { cursor: pointer; font-size: 21px; line-height: 2.1; }
+.reading-entry rt { font-size: 45%; }
+.reading-entry p { line-height: 1.9; }
+.reading-source { color: var(--muted); }
+.lesson-pack, .lesson-editor { padding: 20px 0; border-top: 1px solid var(--line); margin-top: 20px; }
+.lesson-editor { max-width: 760px; display: grid; gap: 16px; }
+.lesson-editor label { display: grid; gap: 8px; }
+.lesson-editor label.setting-row { display: flex; }
+.lesson-editor input, .lesson-editor select, .lesson-editor textarea { width: 100%; }
+.lesson-editor input[type="checkbox"] { width: auto; }
+select { font: inherit; background: var(--paper); color: var(--sumi); border: 1px solid var(--paper-muted); border-radius: 6px; padding: 10px; max-width: 100%; }
+.readability-settings { border: 1px solid var(--line); margin: 16px 0; border-radius: 6px; }
+.readability-settings legend { font-weight: 700; }
+body[data-text-size="large"] { --reading-scale: 1.16; font-size: 18px; }
+body[data-line-spacing="wide"] { --prompt-leading: 1.7; }
+body[data-line-spacing="wide"] .learning-mount, body[data-line-spacing="wide"] .menu-card-desc, body[data-line-spacing="wide"] .settings-panel { line-height: 1.9; }
+.courier-mount { width: 100%; }
+.courier-hud { display: flex; gap: 20px; align-items: center; padding: 0 20px; min-height: 35px; font-variant-numeric: tabular-nums; }
+.courier-hud strong { font-size: 24px; }
+.courier-hud #courierStatus { margin-left: auto; font-size: 14px; color: var(--muted); }
+.courier-scene { display: block; width: 100%; height: 210px; background: var(--yoru-deep); }
+.courier-moon { fill: var(--tsuki); opacity: 0.9; }
+.courier-mountains { fill: var(--ai); opacity: 0.2; }
+.courier-roofs { fill: none; stroke: var(--muted); stroke-width: 3; stroke-linejoin: round; opacity: 0.55; }
+.courier-road { stroke: var(--path-line); stroke-width: 4; stroke-dasharray: 6 12; }
+.courier-bridge { fill: none; stroke: var(--tsuki); stroke-width: 4; }
+.courier-gate { fill: none; stroke: var(--chochin); stroke-width: 6; stroke-linecap: round; }
+.courier-parcel, #courierPile rect { fill: var(--paper); stroke: var(--sumi); stroke-width: 2; }
+.courier-tie { stroke: var(--ai); stroke-width: 4; }
+.courier-body { fill: var(--ai); stroke: var(--tsuki); stroke-width: 2; }
+.courier-limbs { fill: none; stroke: var(--tsuki); stroke-width: 5; stroke-linecap: round; }
+.courier-scarf { fill: var(--ai); }
+.courier-delivery-glow { stroke: var(--kin); stroke-width: 4; fill: none; opacity: 0; }
+.courier-travel { height: 4px; background: var(--line); }
+.courier-travel span { display: block; height: 4px; background: var(--chochin); }
+.courier-mode .dojo { gap: 14px; min-height: 0; }
+.courier-mode .prompt-kana { margin-top: 4px; }
+.courier-mode .combo-fx { bottom: 12px; }
+.result-game-detail { color: var(--sumi); font-variant-numeric: tabular-nums; }
+body[data-reduce-motion="true"] *, body[data-reduce-motion="true"] *::before, body[data-reduce-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media (max-width: 1024px) {
+  .mastery-keyboard .key { width: 54px; height: 76px; }
+  .courier-hud { flex-wrap: wrap; gap: 10px; }
+  .courier-scene { height: 180px; }
+}
+@media (max-width: 700px) {
+  .mastery-keyboard .key { width: 28px; height: 70px; font-size: 14px; }
+  .key-mastery { font-size: 8px; }
+  .courier-hud #courierStatus { width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .shuriken-hit { animation: none !important; transform: rotate(18deg); opacity: 1; }
 }
 

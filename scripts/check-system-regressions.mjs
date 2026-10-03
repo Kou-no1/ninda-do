@@ -18,7 +18,7 @@ function fixture(storageOptions = {}) {
   class FakeDate extends Date { constructor(...args) { super(...(args.length ? args : [time])); } static now() { return time; } }
   const noop = () => {};
   const document = { addEventListener: noop, createElement: () => ({ remove: noop }), body: { appendChild: noop } };
-  const context = vm.createContext({ console, Date: FakeDate, document, performance: { now: () => time },
+  const context = vm.createContext({ console, TextEncoder, Date: FakeDate, document, performance: { now: () => time },
     localStorage: { getItem: (key) => values.get(key) || null, setItem: (key, value) => { if (storageOptions.quota) throw new Error("quota"); values.set(key, value); }, removeItem: (key) => values.delete(key) },
     setTimeout: noop, clearTimeout: noop, addEventListener: noop });
   context.window = context;
@@ -183,6 +183,91 @@ test("integrity rejects invalid vocabulary with a stage-specific cause", () => {
   const result = spawnSync(process.execPath, ["scripts/check-data-integrity.mjs"], { cwd: directory, encoding: "utf8", windowsHide: true });
   assert.equal(result.status, 1);
   assert.match(result.stdout + result.stderr, /\[kyu5\]/);
+});
+
+test("spaced reviews follow JST dates, advance once per day and never punish absence", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu4");
+  const event = { id: "kyu4", stageId: "kyu4", mode: "training", purpose: "practice", completed: true, correct: 20, miss: 0, acc: 1, rhythm: "静", readings: [] };
+  const save = s.ensure(); save.practicedStages.push("kyu4"); c.LearningManager.applySession(save, event, "2026-10-03");
+  assert.equal(save.learning.reviews.kyu4.due, "2026-10-04");
+  c.LearningManager.applySession(save, { ...event, purpose: "review" }, "2026-10-04");
+  assert.equal(save.learning.reviews.kyu4.due, "2026-10-07");
+  c.LearningManager.applySession(save, { ...event, purpose: "review" }, "2026-10-04");
+  assert.equal(save.learning.reviews.kyu4.step, 1);
+  c.LearningManager.applySession(save, { ...event, purpose: "mini" }, "2026-10-05");
+  assert.equal(save.learning.reviews.kyu4.due, "2026-10-07");
+  const missions = plain(save.learning.missions); const plan = c.LearningManager.plan(save, "2026-11-01");
+  assert.equal(plan[0].purpose, "review"); assert.deepEqual(plain(save.learning.missions), missions);
+});
+
+test("mini drills respect cumulative grade keys and independent alphabet track", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu4");
+  let save = s.ensure(); assert.ok(c.LearningManager.drillItems("kyu4", "musubi", save).length);
+  assert.equal(c.LearningManager.drillItems("kyu4", "bunshin", save).length, 0);
+  save.confusions = { "f>j": 10, "a>z": 15 };
+  const items = c.LearningManager.drillItems("kyu9", "pair", save);
+  assert.ok(items.length); for (const item of items) assert.equal(c.InputEngine.isTypeable(item.text, c.LearningManager.stageSets("kyu9").keys), true);
+  assert.equal(c.LearningManager.drillItems("nyumon1", "musubi", save).length, 0);
+});
+
+test("lesson files validate content, rights, duplicates, size and unlocked kana/keys", () => {
+  const { context: c } = fixture(); const parse = c.LearningManager.parseLesson;
+  const data = { format: "ninda-do-lesson", v: 1, title: "ことば", stageId: "kyu5", kind: "word", items: ["ねこ", "はな"], rights: "original-or-permitted" };
+  const valid = parse(data); assert.match(valid.id, /^lesson-/); assert.equal(parse(JSON.stringify(valid)).id, valid.id);
+  for (const change of [{ items: ["ゆき"] }, { items: ["ねこ", "ねこ"] }, { items: ["<script>"] }, { title: "<img>" }, { rights: "" }, { items: ["がっこう"] }]) assert.throws(() => parse({ ...data, ...change }));
+  assert.throws(() => parse(" ".repeat(102401)));
+  assert.throws(() => parse({ ...data, stageId: "kyu10", kind: "in", items: ["fa"] }));
+  assert.equal(parse({ ...data, stageId: "nyumon4", kind: "letter", items: ["z"] }).items[0], "z");
+});
+
+test("unit and confusion statistics share the single event pipeline", () => {
+  const { context: c } = fixture(); const m = c.MetricsEngine.createSession({ mode: "training" });
+  m.consume({ ts: 1, kana: "ん", key: "a", expectedKeys: ["n"], correct: false });
+  m.consume({ ts: 2, kana: "ん", key: "n", expectedKeys: ["n"], correct: true });
+  assert.deepEqual(plain(m.summary().unitStats["ん"]), { attempts: 2, misses: 1 });
+  assert.equal(m.summary().confusions["n>a"], 1); assert.equal("kpm" in m.summary(), false);
+});
+
+test("new learning, game and lesson records remain read-only in teacher mode", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu5");
+  s.setSetting("teacherMode", true); const before = plain(s.ensure());
+  s.addSessionSummary("kyu5", { mode: "training", correct: 20, miss: 0, keyStats: {}, unitStats: { a: { attempts: 20, misses: 0 } }, confusions: {} }, 1,
+    { event: { completed: true, correct: 20, miss: 0, acc: 1, stageId: "kyu5", mode: "training", delivered: 5, readings: [c.LearningManager.readingEntries()[0].kana] } });
+  s.updateCourierBest("sato-bin", 100, 5); s.update((data) => { data.learning.lessonPack = {}; });
+  assert.deepEqual(plain(s.ensure()), before);
+  s.setSetting("textSize", "large"); assert.equal(s.ensure().settings.textSize, "large");
+  assert.deepEqual(plain(s.ensure().learning), before.learning);
+});
+
+test("courier unlocks, accuracy-weighted scoring and best updates are deterministic", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
+  assert.equal(c.NinjaGameManager.unlocked(c.GAME_DATA.courses[0], s.ensure()), false);
+  s.update((data) => { data.dan = "genin"; });
+  assert.equal(c.NinjaGameManager.unlocked(c.GAME_DATA.courses[0], s.ensure()), true);
+  assert.equal(c.NinjaGameManager.unlocked(c.GAME_DATA.courses[1], s.ensure()), false);
+  assert.equal(c.NinjaGameManager.score(101, 0.9), 91);
+  assert.equal(s.updateCourierBest("sato-bin", 100, 8).updated, true);
+  assert.equal(s.updateCourierBest("sato-bin", 90, 10).updated, false);
+  assert.equal(s.ensure().best.courier["sato-bin"].words, 8);
+  for (const course of c.GAME_DATA.courses) assert.ok(c.NinjaGameManager.pool(course).length >= 5);
+  const before = plain(s.ensure()); const backup = s.exportBackup(); s.reset(); s.restoreBackup(backup);
+  assert.deepEqual(plain(s.ensure()), before);
+});
+
+test("missions, reading and lesson completion persist only completed sessions and survive backup", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
+  const reading = c.LearningManager.readingEntries()[0].kana;
+  const summary = { mode: "training", correct: 10, miss: 0, rhythm: "静", keyStats: {}, unitStats: {}, confusions: {} };
+  const event = { id: "kyu1", stageId: "kyu1", mode: "training", purpose: "review", completed: true, correct: 10, miss: 0, acc: 1, rhythm: "静", readings: [reading], lessonId: "lesson-1234" };
+  for (let i = 0; i < 3; i += 1) s.addSessionSummary("kyu1", summary, 1, { event });
+  assert.ok(s.ensure().learning.missions.includes("gate")); assert.ok(s.ensure().learning.missions.includes("bridge"));
+  assert.ok(s.ensure().learning.missions.includes("garden"));
+  assert.equal(s.ensure().learning.readings.length, 1); assert.deepEqual(plain(s.ensure().learning.completedLessons), ["lesson-1234"]);
+  const before = plain(s.ensure().learning);
+  s.addSessionSummary("kyu1", summary, 1, { partial: true, event: { ...event, completed: false } });
+  assert.deepEqual(plain(s.ensure().learning), before);
+  const backup = s.exportBackup(); s.reset(); s.restoreBackup(backup);
+  assert.deepEqual(plain(s.ensure().learning), before);
 });
 
 console.log(`OK system regressions: ${tests} tests`);

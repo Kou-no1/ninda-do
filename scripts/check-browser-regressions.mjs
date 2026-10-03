@@ -71,12 +71,23 @@ try {
   await send("Emulation.setDeviceMetricsOverride", { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__clock=0; window.__timers=new Map(); let id=0; Object.defineProperty(performance,'now',{value:()=>__clock}); window.setInterval=(fn,ms)=>{__timers.set(++id,{fn,ms,last:__clock});return id;};window.clearInterval=id=>__timers.delete(id);window.__advance=ms=>{__clock+=ms;for(const[id,t]of[...__timers])if(__timers.has(id)&&__clock-t.last>=t.ms){t.last=__clock;t.fn();}};window.__key=key=>document.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));` });
   await send("Page.navigate", { url: pathToFileURL(path.join(root, "index.html")).href }); await ready();
+  await evaluate("window.__danPool=DAN_WORDS.words.slice();");
 
   await test("file startup and IME name-entry isolation", async () => {
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     await evaluate("document.getElementById('ninjaName').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));");
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     assert.equal(errors.length, 0);
+  });
+
+  await test("theme switch updates inherited body text, not only explicit variable users", async () => {
+    await fresh();
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    await evaluate("SaveManager.setSetting('display','light');NindaApp.applyTheme();");
+    const colors = await evaluate("({color:getComputedStyle(document.body).color,variable:getComputedStyle(document.body).getPropertyValue('--tsuki')})");
+    assert.equal(colors.color, "rgb(42, 38, 34)", JSON.stringify(colors));
+    await evaluate("SaveManager.setSetting('display','night');NindaApp.applyTheme();");
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
   });
 
   await test("only one next-item transition, guide follows, miss does not advance", async () => {
@@ -146,6 +157,7 @@ try {
 
   await test("grade menu locks exams, supports keyboard navigation and has no speed metadata", async () => {
     await fresh(); await evaluate("NindaApp.showScreen('S1');NindaApp.openStageMenu('kyu9');");
+    await delay(40);
     assert.equal(await evaluate("document.activeElement.dataset.menuCard"), "training-0");
     assert.equal(await evaluate("document.querySelector('[data-menu-card=exam]').getAttribute('aria-disabled')"), "true");
     assert.equal(await evaluate("/KPM|打\\/分|びょう|秒/.test(document.getElementById('menuModalMount').textContent)"), false);
@@ -171,7 +183,7 @@ try {
 
   await test("dan retry restarts kata, logs actual stats, aborted transition cannot restart", async () => {
     await fresh("kyu1");
-    await evaluate(`SaveManager.update(s=>{s.dan='genin';});SaveManager.markPracticed('genin'); DAN_WORDS.words=['あ']; DAN_SENTENCES.sentences=['あ。'];const exam=RANK_DATA.dans.find(x=>x.id==='chunin').exam;exam.kata.items=1;exam.jissen.seconds=60;exam.jissen.kpm=0;exam.shingan.items=1;ExamManager.startDanExam('chunin');__key('a');`);
+    await evaluate(`window.__danPool=DAN_WORDS.words.slice();SaveManager.update(s=>{s.dan='genin';});SaveManager.markPracticed('genin'); DAN_WORDS.words=['あ']; DAN_SENTENCES.sentences=['あ。'];const exam=RANK_DATA.dans.find(x=>x.id==='chunin').exam;exam.kata.items=1;exam.jissen.seconds=60;exam.jissen.kpm=0;exam.shingan.items=1;ExamManager.startDanExam('chunin');__key('a');`);
     await delay(1100);
     assert.ok(await evaluate("document.getElementById('examPhase').textContent.includes('実戦')"));
     await keys("a."); await delay(180); await evaluate("__advance(60000)"); await delay(950);
@@ -254,7 +266,7 @@ try {
     await evaluate("document.querySelector('[data-modal-action=restore]').click();");
     assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__original"), true);
     assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), true);
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.9.0')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.10.0')"), true);
     await screenshot("settings-1024.png");
   });
 
@@ -307,6 +319,129 @@ try {
     assert.equal(await evaluate(`(()=>{const box=document.getElementById('promptKana').getBoundingClientRect(),current=document.querySelector('#promptKana .current').getBoundingClientRect();return current.top>=box.top&&current.bottom<=box.bottom&&current.bottom<innerHeight;})()`), true);
     assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
     await screenshot("long-ruby-1024.png");
+  });
+
+  await test("notebook tabs, review planning, mini drills and mastery keep grades free of speed", async () => {
+    await fresh("kyu4");
+    await evaluate(`SaveManager.markPracticed('kyu5');SaveManager.update(s=>{s.keyStats.a={attempts:20,misses:1,sumLatency:1,recent:[]};s.confusions={'f>j':3};});LearningManager.open('today');`);
+    assert.ok(await evaluate("document.querySelector('[data-plan=review]')!==null"));
+    await evaluate("document.querySelector('[data-learning-tab=keys]').click();");
+    assert.ok(await evaluate("document.querySelector('#masteryMount [data-key=a]').textContent.includes('95%')"));
+    assert.equal(await evaluate("/KPM|スコア|びょう/.test(document.getElementById('learningMount').textContent)"), false);
+    await screenshot("mastery-1024.png");
+    await evaluate("document.querySelector('[data-learning-tab=mini]').click();");
+    assert.equal(await evaluate("document.querySelector('[data-drill=musubi]').disabled"), false);
+    assert.equal(await evaluate("document.querySelector('[data-drill=bunshin]').disabled"), true);
+    await evaluate("document.querySelector('[data-drill=pair]').click();");
+    assert.equal(await evaluate("document.getElementById('S2').hidden"), false);
+    assert.equal(await evaluate("/KPM|スコア/.test(document.getElementById('trainingStats').textContent)"), false);
+    const prompt = await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')");
+    await keys(prompt); await delay(180);
+    await evaluate("TrainingManager.checkpoint(true);TrainingManager.checkpoint(true);");
+    assert.equal(await evaluate("SaveManager.ensure().unitStats[" + JSON.stringify(prompt[0]) + "].attempts"), prompt.split(prompt[0]).length - 1);
+  });
+
+  await test("lesson file preview rejects unreleased kana, import is explicit and completion cannot clear stages", async () => {
+    await fresh("kyu5"); await evaluate("LearningManager.open('lessons');");
+    const data = { format: "ninda-do-lesson", v: 1, title: "はなの巻", stageId: "kyu5", kind: "word", items: ["はな", "ねこ"], rights: "original-or-permitted" };
+    const upload = async (lesson) => {
+      await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(JSON.stringify(lesson))}],'lesson.json',{type:'application/json'}));const input=document.getElementById('lessonFile');input.files=transfer.files;input.dispatchEvent(new Event('change'));})()`);
+      await delay(150);
+    };
+    await upload({ ...data, items: ["ゆき"] });
+    assert.ok(await evaluate("document.getElementById('lessonMessage').textContent.includes('ならっていない')"));
+    assert.equal(await evaluate("SaveManager.ensure().learning.lessonPack"), null);
+    await upload(data);
+    assert.equal(await evaluate("SaveManager.ensure().learning.lessonPack"), null);
+    assert.equal(await evaluate("document.activeElement.id"), "lessonCancel");
+    await evaluate("document.getElementById('lessonAccept').click();document.getElementById('lessonStart').click();");
+    await keys("hana"); await delay(180); await keys("neko"); await delay(180);
+    assert.equal(await evaluate("SaveManager.ensure().learning.completedLessons.length"), 1);
+    assert.deepEqual(await evaluate("SaveManager.ensure().clearedStages"), []);
+    assert.deepEqual(await evaluate("SaveManager.ensure().practicedStages"), []);
+    assert.equal(await evaluate("!!document.querySelector('.result-speed')"), false);
+  });
+
+  await test("courier moves visibly, waits without skipping, counts deliveries and saves weighted score", async () => {
+    await fresh("kyu1");
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+    await evaluate("DAN_WORDS.words=__danPool.slice();SaveManager.update(s=>{s.dan='genin';});NindaApp.openJissenMenu();");
+    await evaluate("document.querySelector('[data-menu-card=courier]').click();");
+    assert.equal(await evaluate("document.querySelector('[data-menu-card=yama-bin]').getAttribute('aria-disabled')"), "true");
+    await evaluate("document.querySelector('[data-menu-card=sato-bin]').click();");
+    const before = await evaluate("document.getElementById('courierRunner').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.notEqual(await evaluate("document.getElementById('courierRunner').getAttribute('transform')"), before);
+    const prompt = await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')");
+    const correctKeys = await evaluate(`InputEngine.preferredRomaji(${JSON.stringify(prompt)})`);
+    const wrong = correctKeys[0] === "z" ? "q" : "z";
+    await keys(wrong + wrong); await evaluate("__advance(20000)");
+    assert.equal(await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')"), prompt);
+    assert.ok(await evaluate("document.getElementById('courierStatus').textContent.includes('まっています')"));
+    await keys(correctKeys); await delay(180);
+    assert.ok(await evaluate("document.getElementById('courierDelivered').textContent.endsWith('1')"));
+    await screenshot("courier-night-1024.png");
+    await evaluate("__advance(60000)");
+    assert.equal(await evaluate("SaveManager.ensure().best.courier['sato-bin'].score"), Math.round(10 * correctKeys.length / (correctKeys.length + 2)));
+    assert.equal(await evaluate("SaveManager.ensure().learning.counters.delivered"), 1);
+    assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+  });
+
+  await test("courier teacher demos and both motion settings never change child progress", async () => {
+    await fresh("kyu1");
+    await evaluate("DAN_WORDS.words=__danPool.slice();SaveManager.setSetting('teacherMode',true);SaveManager.setSetting('reduceMotion',true);NindaApp.applyTheme();window.__teacherBefore=JSON.stringify(SaveManager.ensure());NinjaGameManager.start('tsuki-bin');");
+    const position = await evaluate("document.getElementById('courierRunner').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.equal(await evaluate("document.getElementById('courierRunner').getAttribute('transform')"), position);
+    await keys(await evaluate("InputEngine.preferredRomaji(document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,''))")); await delay(180);
+    await evaluate("__advance(90000)");
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__teacherBefore"), true);
+    await evaluate("TrainingManager.stop(false);SaveManager.setSetting('reduceMotion',false);NindaApp.applyTheme();");
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    await evaluate("NinjaGameManager.start('sato-bin');");
+    const systemPosition = await evaluate("document.getElementById('courierRunner').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.equal(await evaluate("document.getElementById('courierRunner').getAttribute('transform')"), systemPosition);
+    await evaluate("TrainingManager.stop(false);TrainingManager.start('kyu5',1);");
+    assert.equal(await evaluate("document.getElementById('courierMount').innerHTML"), "");
+    assert.equal(await evaluate("/KPM|荷物点/.test(document.getElementById('trainingStats').textContent)"), false);
+  });
+
+  await test("reading notebook uses unchanged ruby/source; large text and themes fit both target widths", async () => {
+    await fresh("kyu1");
+    await evaluate(`SaveManager.setSetting('teacherMode',true);SaveManager.setSetting('textSize','large');SaveManager.setSetting('lineSpacing','wide');SaveManager.setSetting('fingerSymbols',true);LearningManager.open('reading');`);
+    assert.equal(await evaluate("document.querySelectorAll('.reading-entry').length"), 36);
+    assert.ok(await evaluate("document.querySelector('.reading-entry ruby')!==null"));
+    for (const width of [1366, 1024]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 768, deviceScaleFactor: 1, mobile: false });
+      for (const theme of ["night", "light"]) {
+        await evaluate(`SaveManager.setSetting('display',${JSON.stringify(theme)});NindaApp.applyTheme();NinjaGameManager.start('sato-bin');`);
+        const colors = await evaluate("({body:getComputedStyle(document.body).color,variable:getComputedStyle(document.body).getPropertyValue('--tsuki'),header:getComputedStyle(document.getElementById('trainingTitle')).color,hud:getComputedStyle(document.getElementById('courierScore')).color,theme:document.body.dataset.theme,style:document.body.getAttribute('style')})");
+        assert.equal(colors.header, theme === "light" ? "rgb(42, 38, 34)" : "rgb(236, 231, 216)", JSON.stringify(colors));
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        assert.ok(await evaluate("document.getElementById('courierMount').getBoundingClientRect().height>150"));
+        assert.equal(await evaluate("document.querySelector('#promptKana .current').getBoundingClientRect().bottom<innerHeight"), true);
+        await screenshot(`courier-${theme}-large-${width}.png`);
+        await evaluate("TrainingManager.stop(false);LearningManager.open('keys');");
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        assert.ok(await evaluate("document.querySelector('#masteryMount .finger-symbol')!==null"));
+      }
+    }
+    await evaluate("LearningManager.open('missions');"); await screenshot("missions-light-1024.png");
+  });
+
+  await test("teacher lesson export is ephemeral; readability settings persist on reload", async () => {
+    await fresh("kyu5");
+    await evaluate(`SaveManager.setSetting('teacherMode',true);LearningManager.open('lessons');window.__lessonBefore=JSON.stringify(SaveManager.ensure());document.getElementById('lessonTitle').value='はなの巻';document.getElementById('lessonStage').value='kyu5';document.getElementById('lessonStage').dispatchEvent(new Event('change'));document.getElementById('lessonKind').value='word';document.getElementById('lessonItems').value='はな\\nねこ';document.getElementById('lessonRights').checked=true;window.__createUrl=URL.createObjectURL;URL.createObjectURL=blob=>{window.__exportedLesson=blob;return __createUrl(blob);};window.__anchorClick=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){};document.getElementById('lessonForm').requestSubmit();URL.createObjectURL=__createUrl;HTMLAnchorElement.prototype.click=__anchorClick;`);
+    const lesson = JSON.parse(await evaluate("__exportedLesson.text()"));
+    assert.deepEqual(lesson.items, ["はな", "ねこ"]); assert.equal(lesson.stageId, "kyu5");
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__lessonBefore"), true);
+    await evaluate("NindaApp.showScreen('S6');document.querySelector('[data-readability=textSize]').click();document.querySelector('[data-readability=lineSpacing]').click();document.querySelector('[data-readability=fingerSymbols]').click();document.querySelector('[data-readability=reduceMotion]').click();");
+    await send("Page.reload"); await delay(150); await ready();
+    assert.equal(await evaluate("document.body.dataset.textSize"), "large");
+    assert.equal(await evaluate("document.body.dataset.lineSpacing"), "wide");
+    assert.equal(await evaluate("SaveManager.ensure().settings.fingerSymbols"), true);
+    assert.equal(await evaluate("document.body.dataset.reduceMotion"), "true");
   });
 
   await test("observation rubric remains ephemeral and prints one page", async () => {

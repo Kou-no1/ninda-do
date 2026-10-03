@@ -202,9 +202,10 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
     return `<section class="growth-records"><h2>${escapeHtml(text.title)}</h2>${entries.length
       ? `<div class="table-scroll"><table><thead><tr>${[text.date, text.stage, text.accuracy, text.rhythm, text.combo].map((label) => `<th scope="col">${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>
         ${entries.map((entry) => {
-          const stage = CURRICULUM_DATA.stages.find((item) => item.id === entry.id);
+          const stage = CURRICULUM_DATA.stages.find((item) => item.id === (entry.stageId || entry.id));
           const course = RANK_DATA.banzuke.courses.find((item) => item.id === entry.id);
-          const label = stage ? stage.label : course ? course.label : entry.id && entry.id.includes(":") ? "三の試し" : "実戦";
+          const delivery = entry.purpose === "courier" ? GAME_DATA.courses.find((item) => entry.id === `courier:${item.id}`) : null;
+          const label = stage ? stage.label : delivery ? `${GAME_DATA.label} ${delivery.label}` : entry.lessonId ? UI_TEXT.learning.lessons : course ? course.label : entry.id && entry.id.includes(":") ? "三の試し" : "実戦";
           return `<tr><td>${escapeHtml(new Date(entry.ts).toLocaleDateString("ja-JP"))}</td><td>${escapeHtml(label)}</td><td>${Math.round((entry.acc || 0) * 100)}%</td><td>${escapeHtml(entry.rhythm || "—")}</td><td>${numberText(entry.maxCombo)}</td></tr>`;
         }).join("")}</tbody></table></div>` : `<p>${escapeHtml(text.empty)}</p>`}</section>`;
   }
@@ -278,9 +279,16 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       <label class="setting-row"><input type="checkbox" id="voiceSetting" ${save.settings.voice ? "checked" : ""}> 入門で読み上げる</label>
       <label class="setting-row"><input type="checkbox" id="displaySetting" ${save.settings.display === "light" ? "checked" : ""}> あかるいひょうじ（プロジェクタ・けいじ用）</label>
       <label class="setting-row"><input type="checkbox" id="kanjiDisplaySetting" ${save.settings.kanjiDisplay !== false ? "checked" : ""}> ${UI_TEXT.kanjiDisplaySetting}</label>
+      <fieldset class="readability-settings"><legend>${UI_TEXT.readability.title}</legend>
+        <label class="setting-row"><input type="checkbox" data-readability="textSize" ${save.settings.textSize === "large" ? "checked" : ""}>${UI_TEXT.readability.size}</label>
+        <label class="setting-row"><input type="checkbox" data-readability="lineSpacing" ${save.settings.lineSpacing === "wide" ? "checked" : ""}>${UI_TEXT.readability.spacing}</label>
+        <label class="setting-row"><input type="checkbox" data-readability="fingerSymbols" ${save.settings.fingerSymbols ? "checked" : ""}>${UI_TEXT.readability.symbols}</label>
+        <label class="setting-row"><input type="checkbox" data-readability="reduceMotion" ${save.settings.reduceMotion ? "checked" : ""}>${UI_TEXT.readability.motion}</label>
+      </fieldset>
       ${teacher ? `<label class="setting-row teacher-mode-row"><input type="checkbox" id="teacherModeSetting" checked> 先生モード</label>` : ""}
       <div class="teacher-menu">
         <a href="poster.html" target="_blank" rel="noopener">せんせいメニュー: ゆびのいろポスターをひらく</a>
+        ${teacher ? `<button type="button" id="teacherLessonButton">${UI_TEXT.readability.teacherLessons}</button>` : ""}
       </div>
       <details class="observation-tools"><summary>${UI_TEXT.observation.title}</summary>
         <p>${UI_TEXT.observation.note}</p>
@@ -326,6 +334,12 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
       });
     }
     wireTeacherUnlock();
+    mount.querySelectorAll("[data-readability]").forEach((input) => input.addEventListener("change", () => {
+      const key = input.dataset.readability;
+      SaveManager.setSetting(key, key === "textSize" ? input.checked ? "large" : "normal" : key === "lineSpacing" ? input.checked ? "wide" : "normal" : input.checked);
+      NindaApp.applyTheme();
+    }));
+    if (teacher) document.getElementById("teacherLessonButton").addEventListener("click", () => LearningManager.open("lessons"));
     wireBackup();
     mount.querySelectorAll("[data-observation]").forEach((input) => input.addEventListener("change", () => {
       if (input.checked) observations.add(input.dataset.observation);

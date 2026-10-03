@@ -226,6 +226,7 @@ const ExamManager = globalThis.ExamManager = (function () {
       else showBanzukeCourses(save);
       return;
     }
+    if (menu.kind === "courier") { NinjaGameManager.openCourses(); return; }
     const items = buildJissenItems(menu, save);
     NindaApp.showScreen("S2");
     TrainingManager.startRunner({

@@ -57,6 +57,7 @@
           <h1>忍打道 —NINDA DO—</h1>
         </div>
         <nav class="top-actions" aria-label="画面">
+          <button data-screen="S7" id="notebookButton"></button>
           <button data-screen="S4">巻物庫</button>
           <button data-screen="S5">免状</button>
           <button data-screen="S6">設定</button>
@@ -71,6 +72,7 @@
           <h2 id="currentRank">修行の道</h2>
           <p id="nextGoal">次の目標をえらんでね。</p>
           <div class="button-stack">
+            <button id="todayButton"></button>
             <button id="trainingButton" aria-label="しゅぎょう"></button>
             <button id="examButton" aria-label="ためし"></button>
             <button id="jissenButton" aria-label="じっせんのま" hidden></button>
@@ -87,6 +89,7 @@
         <div id="trainingStats" class="stat-line"></div>
       </header>
       <main class="dojo">
+        <div id="courierMount" class="courier-mount" hidden></div>
         <div id="promptKana" class="prompt-kana"></div>
         <div id="romajiGuide" class="romaji-guide"></div>
         <div id="promptFurigana" class="prompt-furigana"></div>
@@ -130,6 +133,11 @@
       <header class="topbar"><button data-screen="S1">さとへ</button><h1>設定</h1></header>
       <div id="settingsMount" class="settings-panel"></div>
     </section>
+    <section id="S7" class="screen" hidden>
+      <header class="topbar"><button data-screen="S1">さとへ</button><h1 id="notebookTitle"></h1></header>
+      <div id="learningTabs" class="tabs learning-tabs" role="tablist" aria-label="修行帳"></div>
+      <main id="learningMount" class="learning-mount" role="tabpanel"></main>
+    </section>
   </div>
   <section id="printLicense" hidden aria-hidden="true"></section>
 
@@ -139,6 +147,8 @@
   <script src="data/nickname-data.js"></script>
   <script src="data/curriculum-data.js"></script>
   <script src="data/rank-data.js"></script>
+  <script src="data/learning-data.js"></script>
+  <script src="data/game-data.js"></script>
   <script src="data/words/nyumon-words.js"></script>
   <script src="data/words/kyu10-words.js"></script>
   <script src="data/words/kyu9-words.js"></script>
@@ -167,6 +177,8 @@
   <script src="js/exam-manager.js"></script>
   <script src="js/achievement-manager.js"></script>
   <script src="js/collection-renderer.js"></script>
+  <script src="js/learning-manager.js"></script>
+  <script src="js/ninja-game-manager.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
