@@ -1286,6 +1286,78 @@ body[data-line-spacing="wide"] .learning-mount, body[data-line-spacing="wide"] .
 .courier-mode .prompt-kana { margin-top: 4px; }
 .courier-mode .combo-fx { bottom: 12px; }
 .result-game-detail { color: var(--sumi); font-variant-numeric: tabular-nums; }
+.courier-route-bar { display: flex; gap: 16px; align-items: center; min-height: 30px; padding: 0 20px; font-size: 13px; flex-wrap: wrap; }
+.courier-route-bar #courierShortcut { margin-left: auto; color: var(--kin); }
+.courier-route-bar #courierGhostCount { color: var(--muted); }
+.route-decoration { display: none; }
+.courier-mount[data-route="roof"] [data-scene="roof"],
+.courier-mount[data-route="bamboo"] [data-scene="bamboo"],
+.courier-mount[data-route="bridge"] [data-scene="bridge"],
+.courier-mount[data-route="garden"] [data-scene="garden"] { display: inline; }
+.courier-bamboo { fill: none; stroke: var(--ai); stroke-width: 5; stroke-linecap: round; }
+.courier-garden { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linejoin: round; }
+.courier-river { stroke: var(--ai); fill: none; stroke-width: 10; opacity: 0.7; }
+.courier-fork { stroke: var(--path-line); stroke-width: 3; stroke-dasharray: 6 8; fill: none; opacity: 0; }
+.courier-mount[data-shortcut="true"] .courier-fork { opacity: 1; }
+.courier-ghost { opacity: 0.3; }
+.courier-journey { display: flex; gap: 20px; justify-content: center; min-height: 28px; align-items: center; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.courier-journey span::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border: 1px solid var(--muted); border-radius: 50%; }
+.courier-journey .visited { color: var(--tsuki); }
+.courier-journey .visited::before { background: var(--kin); border-color: var(--kin); }
+.courier-mount.complete .courier-journey { border-bottom: 1px solid var(--kin); }
+.courier-avatar { --head-color: var(--ai); --belt-color: var(--ai); }
+.avatar-head, .avatar-body, .avatar-scarf { fill: var(--head-color); stroke: var(--tsuki); stroke-width: 1.5; }
+.avatar-eye-band, .avatar-bag { fill: var(--paper); stroke: var(--sumi); stroke-width: 1.5; }
+.avatar-eyes { stroke: var(--sumi); stroke-width: 2; stroke-linecap: round; }
+.avatar-limbs { fill: none; stroke: var(--tsuki); stroke-width: 4; stroke-linecap: round; }
+.avatar-belt { fill: var(--belt-color); stroke: var(--tsuki); stroke-width: 1; }
+.avatar-bag-tie { stroke: var(--ai); stroke-width: 3; }
+.avatar-moon, .avatar-leaf, .avatar-wave, .avatar-bag-wave, .avatar-bag-moon { display: none; }
+.courier-avatar[data-head="head-moon"] { --head-color: var(--rank-hakkin); }
+.courier-avatar[data-head="head-moon"] .avatar-moon { display: inline; fill: var(--sumi); }
+.courier-avatar[data-head="head-leaf"] .avatar-leaf { display: inline; fill: none; stroke: var(--tsuki); stroke-width: 1.5; }
+.courier-avatar[data-belt="belt-plum"] { --belt-color: var(--rank-murasaki); }
+.courier-avatar[data-belt="belt-wave"] .avatar-wave { display: inline; fill: none; stroke: var(--tsuki); stroke-width: 1.5; }
+.courier-avatar[data-bag="bag-wave"] .avatar-bag-wave { display: inline; fill: none; stroke: var(--ai); stroke-width: 1.5; }
+.courier-avatar[data-bag="bag-moon"] .avatar-bag-moon { display: inline; fill: none; stroke: var(--sumi); stroke-width: 1.5; }
+.wardrobe-preview { display: flex; justify-content: center; height: 168px; padding: 10px; background: var(--yoru-deep); border-block: 1px solid var(--line); }
+.wardrobe-preview svg { height: 148px; width: 130px; }
+.wardrobe-slot { border: 0; border-top: 1px solid var(--line); padding: 16px 0; margin: 18px 0 0; }
+.wardrobe-slot legend { font-weight: 700; padding-right: 12px; }
+.wardrobe-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.wardrobe-item { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; border-color: var(--line); background: var(--surface); color: var(--tsuki); min-height: 120px; }
+.wardrobe-item strong, .wardrobe-item span, .wardrobe-item small { display: block; }
+.wardrobe-item span { font-size: 14px; font-weight: 400; margin-top: 6px; line-height: 1.6; }
+.wardrobe-item .wardrobe-icon, .wardrobe-item .wardrobe-item-text { margin: 0; }
+.wardrobe-icon svg { display: block; width: 52px; height: 70px; }
+.wardrobe-item small { color: var(--muted); margin-top: 8px; }
+.wardrobe-item.equipped { border-color: var(--chochin); }
+.shared-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.shared-form label, #sharedGenerated label { display: grid; gap: 8px; flex: 1 1 220px; min-width: 0; }
+.shared-form input, .shared-form select, #sharedGenerated textarea { width: 100%; min-width: 0; }
+#sharedGenerated { padding: 20px 0; }
+#sharedGenerated textarea, .result-challenge input { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+#sharedSelect { margin-top: 10px; }
+.result-challenge { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; }
+.result-challenge input { width: 100%; min-width: 0; padding: 6px 8px; font-size: 12px; background: var(--washi); color: var(--sumi); border: 1px solid var(--paper-muted); border-radius: 4px; }
+.result-coach { border-top: 1px solid var(--paper-muted); padding-top: 8px; text-align: left; }
+.result-coach h3 { margin: 0 0 4px; font-size: 15px; }
+.result-coach p { margin: 0; font-size: 14px; line-height: 1.65; }
+.result-courier { grid-template-columns: 180px minmax(0, 1fr); gap: 8px; }
+.result-courier > * { grid-column: 1 / -1; }
+.result-courier .result-main-stat { grid-column: 1; align-self: stretch; align-content: center; padding: 8px; }
+.result-courier .result-main-stat strong { font-size: 48px; }
+.result-courier .result-summary-grid { grid-column: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.result-courier .result-summary-grid div { padding: 6px; }
+.result-courier .result-speed div { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px; }
+.result-courier .result-speed strong { font-size: 32px; }
+.result-courier .result-game-detail { margin: 0; font-size: 13px; line-height: 1.6; }
+.result-courier .result-weak { padding-top: 5px; }
+.result-courier .result-weak h3 { font-size: 14px; margin-bottom: 4px; }
+.result-courier .result-weak-list span { font-size: 13px; padding: 3px 8px; }
+.result-courier .result-growth { font-size: 13px; padding-top: 4px; }
+.result-courier .result-growth h3 { font-size: 14px; }
+.menu-footer-note { color: var(--paper-muted); font-size: 13px; text-align: left; }
 body[data-reduce-motion="true"] *, body[data-reduce-motion="true"] *::before, body[data-reduce-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 @media (max-width: 1024px) {
   .mastery-keyboard .key { width: 54px; height: 76px; }
@@ -1293,6 +1365,9 @@ body[data-reduce-motion="true"] *, body[data-reduce-motion="true"] *::before, bo
   .courier-scene { height: 180px; }
 }
 @media (max-width: 700px) {
+  .wardrobe-items { grid-template-columns: 1fr; }
+  .result-challenge { grid-template-columns: 1fr; }
+  .result-courier { grid-template-columns: 120px minmax(0, 1fr); }
   .mastery-keyboard .key { width: 28px; height: 70px; font-size: 14px; }
   .key-mastery { font-size: 8px; }
   .courier-hud #courierStatus { width: 100%; }

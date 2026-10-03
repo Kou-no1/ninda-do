@@ -90,3 +90,20 @@ GAME_DATAはlabel/desc/guideLevel、scoring:{delivery,fastBonus}、travel:{baseS
 readingsは提供名文のkanaを安定キーとして格納する。completedLessonsは直近100個の内容ハッシュID。lessonPackは最後に明示取込みした一つの課題。複数プロファイル／クラス情報は持たない。
 課題形式は`{format:"ninda-do-lesson",v:1,title,stageId,kind,items:[string],rights:"original-or-permitted",id}`。idは正規化内容のFNV-1a識別子（暗号／安全性の証明ではない）。取込み時に再計算する。
 session_end追加はstageId/purpose/lessonId/readings/delivered。中断では学習予定・任務・読書・課題完了を加算しないが、実打鍵のunitStats/confusionsは差分保存する。完全バックアップには追加記録を含み、合言葉の収録フィールドは従来のまま。
+
+## v1.11.0 追加データと保存
+
+GAME_DATAにreplay:{version,maxDeliveries}、journey:{deliveriesPerScene,cleanDeliveries,combo,accuracy}、routes:[{id,label,destination,special?}]、outfits:[{id,slot,name,desc,condition}]を追加する。slotはhead/belt/bag、condition.typeはdefault/correct/accuracy/review/combo/delivered。LEARNING_DATA.coachingは[{id,parts,drill,text}]で、既存の小修行を参照する。
+
+```js
+{ game: {
+    owned: ["head-ai", "belt-ai", "bag-plain"],
+    equipped: {head: "head-ai", belt: "belt-ai", bag: "bag-plain"},
+    replays: {"sato-bin": {v: 1, seed: 42, signature: "content-id", times: [800, 1600], score: 35}}
+  }
+}
+```
+
+装備は所持とslotを照合し、欠損時は初期3点へ補う。リプレイは各便の直近完了1回。v/seed/識別子/非負得点/昇順の時刻/上限/便の時間内を検査し、異なる内容の旧リプレイは除外する。timesは一時停止を除くミリ秒で、打鍵列・名前は含まない。先生モードのsaveCourierReplay/equipOutfit/報酬付与もSaveManager中央ゲートで書かない。
+
+共通お題コードは`ND{version}-{course序数}-{seedの36進}-{内容識別子}-{誤記チェック}`。識別子とチェックはFNV-1aの36進表現で、暗号・認証ではない。コース・語彙・ガイド・採点・移動・分かれ道・ローマ字・お題間遷移を識別対象にする。ルールを互換性なく変えるときはreplay.versionも上げる。保存・復元のかな合言葉は別形式のまま。

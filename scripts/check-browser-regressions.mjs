@@ -18,6 +18,8 @@ const browser = spawn(browserPath, ["--headless=new", "--disable-gpu", "--no-fir
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let ws;
 let count = 0;
+const filterExpression = process.argv[2] || process.env.NINDA_TEST_FILTER;
+const testFilter = filterExpression ? new RegExp(filterExpression) : null;
 const errors = [];
 const network = [];
 
@@ -58,7 +60,7 @@ try {
     }
     throw new Error("Page readiness timeout");
   }
-  async function test(name, fn) { await fn(); count += 1; console.log(`OK ${name}`); }
+  async function test(name, fn) { if (testFilter && !testFilter.test(name)) return; await fn(); count += 1; console.log(`OK ${name}`); }
   async function screenshot(name) {
     const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
     fs.writeFileSync(path.join(output, name), Buffer.from(shot.data, "base64"));
@@ -266,7 +268,7 @@ try {
     await evaluate("document.querySelector('[data-modal-action=restore]').click();");
     assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__original"), true);
     assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), true);
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.10.0')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v'+APP_VERSION)"), true);
     await screenshot("settings-1024.png");
   });
 
@@ -369,6 +371,7 @@ try {
     await evaluate("document.querySelector('[data-menu-card=courier]').click();");
     assert.equal(await evaluate("document.querySelector('[data-menu-card=yama-bin]').getAttribute('aria-disabled')"), "true");
     await evaluate("document.querySelector('[data-menu-card=sato-bin]').click();");
+    await evaluate("document.querySelector('[data-menu-card=new]').click();");
     const before = await evaluate("document.getElementById('courierRunner').getAttribute('transform')");
     await evaluate("__advance(1000)");
     assert.notEqual(await evaluate("document.getElementById('courierRunner').getAttribute('transform')"), before);
@@ -405,6 +408,143 @@ try {
     await evaluate("TrainingManager.stop(false);TrainingManager.start('kyu5',1);");
     assert.equal(await evaluate("document.getElementById('courierMount').innerHTML"), "");
     assert.equal(await evaluate("/KPM|荷物点/.test(document.getElementById('trainingStats').textContent)"), false);
+  });
+
+  await test("seeded routes unlock accurate shortcuts, preserve them after mistakes and replay only the previous self", async () => {
+    await fresh("kyu1");
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+    await evaluate("DAN_WORDS.words=__danPool.slice();SaveManager.update(s=>{s.dan='genin';});NinjaGameManager.start('sato-bin',{seed:123456});window.__firstCourierPrompt=document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'');");
+    const routes = new Set();
+    for (let i = 0; i < 6; i += 1) {
+      routes.add(await evaluate("document.getElementById('courierMount').dataset.route"));
+      await evaluate("__advance(800)");
+      await keys(await evaluate("InputEngine.preferredRomaji(document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,''))"));
+      await delay(170);
+    }
+    assert.deepEqual([...routes].sort(), ["bamboo", "bridge", "garden", "roof"]);
+    assert.equal(await evaluate("document.getElementById('courierMount').dataset.shortcut"), "true");
+    const prompt = await evaluate("InputEngine.preferredRomaji(document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,''))");
+    await keys(prompt[0] === "z" ? "q" : "z");
+    assert.equal(await evaluate("document.getElementById('courierMount').dataset.shortcut"), "true");
+    await screenshot("courier-garden-unlocked.png");
+    await evaluate("TrainingManager.setPaused(true);__advance(20000);TrainingManager.setPaused(false);__advance(60000);");
+    const replay = await evaluate("SaveManager.ensure().game.replays['sato-bin']");
+    assert.equal(replay.seed, 123456); assert.equal(replay.times.length, 6); assert.equal(replay.times[5], 4800);
+    assert.equal(await evaluate("document.querySelector('.result-challenge input').value"), await evaluate("NinjaGameManager.exportChallenge('sato-bin',123456)"));
+    await screenshot("courier-route-result.png");
+    assert.equal(await evaluate("document.querySelector('.result-dialog').scrollHeight<=document.querySelector('.result-dialog').clientHeight+1"), true,
+      JSON.stringify(await evaluate("({height:document.querySelector('.result-dialog').clientHeight,content:document.querySelector('.result-dialog').scrollHeight})")));
+    await evaluate("document.querySelector('.result-challenge input').focus();");
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    assert.equal(await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')===__firstCourierPrompt"), true);
+    assert.equal(await evaluate("document.getElementById('courierGhost').hasAttribute('hidden')"), false);
+    const before = await evaluate("document.getElementById('courierGhost').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.notEqual(await evaluate("document.getElementById('courierGhost').getAttribute('transform')"), before);
+    assert.equal(await evaluate("document.getElementById('courierGhostCount').textContent.endsWith('1')"), true);
+    await screenshot("courier-self-ghost.png");
+    await evaluate("TrainingManager.stop(false);NinjaGameManager.openRunMenu('sato-bin');");
+    assert.equal(await evaluate("document.querySelector('[data-menu-card=ghost]').getAttribute('aria-disabled')"), "false");
+  });
+
+  await test("shared lesson codes work by keyboard, reject corruption and respect dan locks", async () => {
+    await fresh("kyu5"); await evaluate("LearningManager.open('shared');");
+    assert.equal(await evaluate("document.querySelector('#learningMount input')===null"), true);
+    assert.equal(await evaluate("/KPM|びょう|スコア/.test(document.getElementById('learningMount').textContent)"), false);
+    await evaluate("SaveManager.update(s=>{s.dan='genin';});LearningManager.open('shared');document.getElementById('sharedSeed').value='42';document.getElementById('sharedCreateForm').requestSubmit();");
+    const code = await evaluate("document.getElementById('sharedOutput').value");
+    assert.equal(code, await evaluate("NinjaGameManager.exportChallenge('sato-bin',42)"));
+    await evaluate("document.getElementById('sharedSelect').click();");
+    assert.equal(await evaluate("document.getElementById('sharedOutput').selectionEnd"), code.length);
+    await delay(40); await evaluate("document.getElementById('sharedInput').focus();");
+    assert.equal(await evaluate("document.activeElement.id"), "sharedInput");
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    assert.ok(await evaluate("document.getElementById('sharedStart')!==null"));
+    await screenshot("shared-code-genin.png");
+    await evaluate("document.getElementById('sharedInput').value=NinjaGameManager.exportChallenge('tsuki-bin',42);document.getElementById('sharedImportForm').requestSubmit();");
+    assert.equal(await evaluate("document.getElementById('sharedStart').disabled"), true);
+    await evaluate("document.getElementById('sharedInput').value+='A';document.getElementById('sharedImportForm').requestSubmit();");
+    assert.equal(await evaluate("document.getElementById('sharedStart')===null"), true);
+    assert.ok(await evaluate("document.getElementById('sharedMessage').textContent.length>0"));
+    await evaluate(`document.getElementById('sharedInput').value=${JSON.stringify(code)};document.getElementById('sharedImportForm').requestSubmit();document.getElementById('sharedStart').click();`);
+    const prompt = await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')");
+    await evaluate("TrainingManager.stop(false);NinjaGameManager.start('sato-bin',{seed:42});");
+    assert.equal(await evaluate("document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,'')"), prompt);
+  });
+
+  await test("wardrobe rewards equip visibly, survive reload and teacher previews never write progress", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.addSessionSummary('kyu1',{mode:'training',correct:100,miss:0,maxCombo:100,keyStats:{},unitStats:{},confusions:{}},1,{event:{completed:true,mode:'training',stageId:'kyu1',purpose:'practice',correct:100,miss:0,acc:1,maxCombo:100}});LearningManager.open('wardrobe');document.querySelector('[data-outfit=head-moon]').click();document.querySelector('[data-outfit=belt-wave]').click();");
+    assert.equal(await evaluate("SaveManager.ensure().game.equipped.head"), "head-moon");
+    assert.equal(await evaluate("document.querySelector('.wardrobe-preview .courier-avatar').dataset.head"), "head-moon");
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.wardrobe-preview .avatar-moon')).display"), "inline");
+    await screenshot("wardrobe-earned.png");
+    await send("Page.reload"); await delay(100); await ready();
+    assert.equal(await evaluate("SaveManager.ensure().game.equipped.head"), "head-moon");
+    await evaluate("SaveManager.setSetting('teacherMode',true);window.__outfitBefore=JSON.stringify(SaveManager.ensure());LearningManager.open('wardrobe');document.querySelector('[data-outfit=bag-moon]').click();NinjaGameManager.start('sato-bin',{seed:99});");
+    assert.equal(await evaluate("document.querySelector('#courierRunner .courier-avatar').dataset.bag"), "bag-moon");
+    await evaluate("__advance(60000)");
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__outfitBefore"), true);
+    await evaluate("TrainingManager.stop(false);SaveManager.setSetting('teacherMode',false);LearningManager.open('wardrobe');");
+    assert.equal(await evaluate("document.querySelector('[data-outfit=bag-moon]').disabled"), true);
+    assert.equal(await evaluate("SaveManager.ensure().game.equipped.bag"), "bag-plain");
+  });
+
+  await test("coach result links directly to an introduced mini drill without speed DOM", async () => {
+    await fresh("kyu4");
+    await evaluate("NindaApp.showScreen('S2');TrainingManager.startRunner({screen:'S2',stageId:'kyu4',items:[{text:'さんぽ',kind:'word'}],guideLevel:1,mode:'training'});");
+    await keys("sa"); await keys("aa"); await keys("npo"); await delay(180);
+    assert.ok(await evaluate("document.querySelector('.result-coach').textContent.includes('んのあと')"));
+    assert.equal(await evaluate("document.querySelector('.result-speed')===null"), true);
+    assert.equal(await evaluate("document.querySelector('.result-challenge')===null"), true);
+    await screenshot("coach-grade-result.png");
+    await evaluate("document.querySelector('[data-modal-action=coach]').click();");
+    assert.ok(await evaluate("document.getElementById('trainingTitle').textContent.includes('んの小修行')"));
+    assert.equal(await evaluate("/KPM|スコア|残り/.test(document.getElementById('trainingStats').textContent)"), false);
+  });
+
+  await test("teacher coaching follows the current key pair, not a larger historical confusion", async () => {
+    await fresh("kyu9");
+    await evaluate("SaveManager.update(s=>{s.confusions['a>s']=100;});SaveManager.setSetting('teacherMode',true);window.__pairBefore=JSON.stringify(SaveManager.ensure());NindaApp.showScreen('S2');TrainingManager.startRunner({screen:'S2',stageId:'kyu9',items:[{text:'fj',kind:'in'}],guideLevel:3,mode:'training'});");
+    await keys("jj"); await keys("fj"); await delay(180);
+    assert.ok(await evaluate("document.querySelector('.result-coach').textContent.includes('fとj')"));
+    await evaluate("document.querySelector('[data-modal-action=coach]').click();");
+    assert.ok(await evaluate("/^[fj]+$/.test(document.querySelector('#promptKana .prompt-progress').textContent)"));
+    assert.equal(await evaluate("JSON.stringify(SaveManager.ensure())===__pairBefore"), true);
+    await evaluate("TrainingManager.stop(false);");
+  });
+
+  await test("new views and ghost motion controls fit both sizes and themes with large text", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.setSetting('teacherMode',true);SaveManager.setSetting('textSize','large');SaveManager.setSetting('lineSpacing','wide');");
+    for (const width of [1366, 1024]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 768, deviceScaleFactor: 1, mobile: false });
+      for (const theme of ["night", "light"]) {
+        await evaluate(`SaveManager.setSetting('display',${JSON.stringify(theme)});NindaApp.applyTheme();LearningManager.open('wardrobe');`);
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        await screenshot(`wardrobe-${theme}-${width}.png`);
+        await evaluate("LearningManager.open('shared');document.getElementById('sharedCreateForm').requestSubmit();document.getElementById('sharedImportForm').requestSubmit();");
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+        await screenshot(`shared-${theme}-${width}.png`);
+        await evaluate("NinjaGameManager.start('sato-bin',{seed:42});");
+        assert.equal(await evaluate("document.querySelector('#promptKana .current').getBoundingClientRect().bottom<innerHeight"), true);
+        await screenshot(`routes-${theme}-${width}.png`);
+        await evaluate("TrainingManager.stop(false);");
+      }
+    }
+    await evaluate("SaveManager.setSetting('teacherMode',false);SaveManager.update(s=>{s.dan='genin';});SaveManager.saveCourierReplay('sato-bin',{v:1,seed:42,signature:NinjaGameManager.signature(GAME_DATA.courses[0]),times:[1000],score:10});SaveManager.setSetting('reduceMotion',true);NindaApp.applyTheme();NinjaGameManager.start('sato-bin',{seed:42});");
+    const before = await evaluate("document.getElementById('courierGhost').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.equal(await evaluate("document.getElementById('courierGhost').getAttribute('transform')"), before);
+    await evaluate("TrainingManager.stop(false);SaveManager.setSetting('reduceMotion',false);NindaApp.applyTheme();");
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    await evaluate("NinjaGameManager.start('sato-bin',{seed:42});");
+    const system = await evaluate("document.getElementById('courierGhost').getAttribute('transform')");
+    await evaluate("__advance(1000)");
+    assert.equal(await evaluate("document.getElementById('courierGhost').getAttribute('transform')"), system);
+    await evaluate("TrainingManager.stop(false);");
   });
 
   await test("reading notebook uses unchanged ruby/source; large text and themes fit both target widths", async () => {

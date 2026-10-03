@@ -391,6 +391,10 @@ for (const mission of learning.missions) {
   missionIds.add(mission.id);
 }
 for (const drill of learning.drills) ok(drill.id && drill.label && drill.desc && drill.count > 0, `NG [drill:${drill.id}] 設定が不正です`);
+for (const rule of learning.coaching) {
+  ok(rule.id && typeof rule.text === "string" && rule.text.trim() && Array.isArray(rule.parts) && rule.parts.length > 0
+    && rule.parts.every((part) => typeof part === "string" && part) && learning.drills.some((drill) => drill.id === rule.drill), `NG [coaching:${rule.id}] 文言・小修行参照が不正です`);
+}
 for (const course of RANK_DATA.banzuke.courses) {
   for (const entry of context[course.wordsRef].items.filter((item) => item && item.genre)) {
     ok(typeof learning.readingNotes[entry.source] === "string" && learning.readingNotes[entry.source].trim(), `NG [reading:${entry.source}] 解説がありません`);
@@ -400,6 +404,19 @@ const game = context.GAME_DATA;
 ok(Number.isInteger(game.guideLevel) && game.guideLevel >= 0 && game.guideLevel <= 3, "NG [courier] ガイドが不正です");
 ok(game.scoring.delivery > 0 && game.scoring.fastBonus >= 0 && game.travel.baseSeconds > 0 && game.travel.secondsPerKey > 0, "NG [courier] 点数・移動時間が不正です");
 ok(new Set(game.courses.map((course) => course.id)).size === game.courses.length, "NG [courier] 便のIDが重複しています");
+ok(Number.isInteger(game.replay.version) && game.replay.version > 0 && Number.isInteger(game.replay.maxDeliveries) && game.replay.maxDeliveries > 0, "NG [courier:replay] 上限・版が不正です");
+ok(["deliveriesPerScene", "cleanDeliveries", "combo"].every((key) => Number.isInteger(game.journey[key]) && game.journey[key] > 0)
+  && game.journey.accuracy > 0 && game.journey.accuracy <= 1, "NG [courier:journey] 解放条件が不正です");
+ok(new Set(game.routes.map((route) => route.id)).size === game.routes.length && game.routes.filter((route) => !route.special).length >= 3
+  && game.routes.filter((route) => route.special).length === 1, "NG [courier:routes] 道の参照が不正です");
+game.routes.forEach((route) => ok(route.id && route.label && route.destination, `NG [courier:route:${route.id}] 文言がありません`));
+ok(new Set(game.outfits.map((item) => item.id)).size === game.outfits.length, "NG [outfits] IDが重複しています");
+for (const slot of ["head", "belt", "bag"]) ok(game.outfits.filter((item) => item.slot === slot && item.condition.type === "default").length === 1, `NG [outfits:${slot}] 初期装備は1つ必要です`);
+for (const item of game.outfits) {
+  ok(item.name && item.desc && ["head", "belt", "bag"].includes(item.slot) && ["default", "correct", "accuracy", "review", "combo", "delivered"].includes(item.condition.type), `NG [outfit:${item.id}] 条件が不正です`);
+  if (item.condition.type !== "default") ok(Number.isInteger(item.condition.n) && item.condition.n > 0, `NG [outfit:${item.id}] 数値が不正です`);
+  if (item.condition.type === "accuracy") ok(item.condition.accuracy > 0 && item.condition.accuracy <= 1, `NG [outfit:${item.id}] 正確率が不正です`);
+}
 for (const course of game.courses) {
   ok(validDanIds.has(course.dan) && course.seconds > 0 && course.minLength > 0 && course.maxLength >= course.minLength, `NG [courier:${course.id}] 条件が不正です`);
   ok(DAN_WORDS.words.filter((word) => word.length >= course.minLength && word.length <= course.maxLength).length >= 5, `NG [courier:${course.id}] 語彙不足です`);

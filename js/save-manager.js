@@ -42,6 +42,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       unitStats: {},
       confusions: {},
       learning: LearningManager.emptyState(),
+      game: NinjaGameManager.emptyProgress(),
       examAttempts: {},
       weakTargets: [],
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {}, courier: {} },
@@ -117,6 +118,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     merged.settings.textSize = merged.settings.textSize === "large" ? "large" : "normal";
     merged.settings.lineSpacing = merged.settings.lineSpacing === "wide" ? "wide" : "normal";
     merged.learning = LearningManager.normalizeState(save.learning);
+    merged.game = NinjaGameManager.normalizeProgress(save.game);
     merged.unitStats = Object.fromEntries(Object.entries(save.unitStats || {}).filter(([unit, stat]) =>
       (ROMAJI_TABLE[unit] || FINGER_DATA.keys[unit]) && stat && typeof stat === "object").map(([unit, stat]) =>
       [unit, { attempts: number(stat.attempts), misses: Math.min(number(stat.attempts), number(stat.misses)) }]));
@@ -245,6 +247,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       MetricsEngine.weakKeys(saveData.keyStats, 5).filter((item) => item.missRate > 0.1).forEach((item) => addUnique(saveData.weakTargets, item.key));
       if (options && options.event) {
         LearningManager.applySession(saveData, options.event, todayJst());
+        NinjaGameManager.applyRewards(saveData, options.event);
         appendEvent(saveData, "session_end", options.event);
       }
     });
@@ -527,6 +530,21 @@ const SaveManager = globalThis.SaveManager = (function () {
     return { updated: true, best: saved.best.courier[courseId] };
   }
 
+  function saveCourierReplay(courseId, replay) {
+    const course = GAME_DATA.courses.find((item) => item.id === courseId);
+    if (!course || !NinjaGameManager.validReplay(replay, course)) return false;
+    if (isTeacherMode()) return false;
+    update((data) => { data.game.replays[courseId] = JSON.parse(JSON.stringify(replay)); });
+    return true;
+  }
+
+  function equipOutfit(id) {
+    return update((data) => {
+      const item = GAME_DATA.outfits.find((entry) => entry.id === id);
+      if (item && data.game.owned.includes(id)) data.game.equipped[item.slot] = id;
+    });
+  }
+
   return {
     STORAGE_KEY,
     DAN_ORDER,
@@ -554,7 +572,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     restoreCode,
     reset,
     setSyncAdapter,
-    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked, updateCourierBest, day: todayJst,
+    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked, updateCourierBest, saveCourierReplay, equipOutfit, day: todayJst,
     storageStatus: () => ({ persistent: !memoryOnly, warning: storageWarning })
   };
 })();

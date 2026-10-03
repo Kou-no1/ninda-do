@@ -270,4 +270,109 @@ test("missions, reading and lesson completion persist only completed sessions an
   assert.deepEqual(plain(s.ensure().learning), before);
 });
 
+test("seeded courier blocks reproduce full order, exhausting pools before repeats", () => {
+  const { context: c } = fixture(); const game = c.NinjaGameManager;
+  for (const course of c.GAME_DATA.courses) {
+    const a = game.sequence(course, 123456); const b = game.sequence(course, 123456);
+    for (let i = 0; i < 4; i += 1) {
+      const batch = plain(a()); assert.deepEqual(batch, plain(b()));
+      assert.equal(new Set(batch.map((item) => item.text)).size, game.pool(course).length);
+    }
+    assert.notDeepEqual(plain(game.sequence(course, 123456)()), plain(game.sequence(course, 987654)()));
+  }
+  assert.throws(() => game.sequence(c.GAME_DATA.courses[0], -1));
+  assert.throws(() => game.sequence(c.GAME_DATA.courses[0], 4294967296));
+});
+
+test("shared codes detect corruption and content revisions without carrying progress", () => {
+  const { context: c } = fixture(); const game = c.NinjaGameManager;
+  c.SaveManager.create("しのび", "kyu1"); const before = plain(c.SaveManager.ensure());
+  for (const course of c.GAME_DATA.courses) for (const seed of [0, 1, 4294967295]) {
+    const code = game.exportChallenge(course.id, seed);
+    assert.deepEqual(plain(game.parseChallenge(` ${code.toLowerCase()} `)), { courseId: course.id, seed, code });
+    assert.throws(() => game.parseChallenge(code + "A"));
+    assert.throws(() => game.parseChallenge(code.replace("ND1", "ND2")));
+  }
+  const old = game.exportChallenge("sato-bin", 1); c.GAME_DATA.travel.baseSeconds += 1;
+  assert.throws(() => game.parseChallenge(old), /版/);
+  assert.deepEqual(plain(c.SaveManager.ensure()), before);
+});
+
+test("replays are bounded and pause-adjusted; teacher writes and invalid records are rejected", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; const g = c.NinjaGameManager;
+  s.create("しのび", "kyu1"); const course = c.GAME_DATA.courses[0];
+  const record = { v: 1, seed: 7, signature: g.signature(course), times: [1000, 5000], score: 30 };
+  assert.equal(s.saveCourierReplay(course.id, record), true);
+  assert.equal(s.saveCourierReplay(course.id, { ...record, times: [5000, 1000] }), false);
+  assert.equal(s.saveCourierReplay(course.id, { ...record, times: [60001] }), false);
+  assert.equal(s.saveCourierReplay(course.id, { ...record, times: Array(501).fill(1000) }), false);
+  assert.equal(g.ghostProgress(record, 0.5, [{ text: "あい" }]).delivered, 0);
+  assert.equal(g.ghostProgress(record, 2, [{ text: "あい" }, { text: "うえ" }]).delivered, 1);
+  assert.equal(g.ghostProgress(record, 6, []).delivered, 2);
+  const backup = s.exportBackup(); s.reset(); s.restoreBackup(backup);
+  assert.deepEqual(plain(s.ensure().game.replays[course.id]), record);
+  s.setSetting("teacherMode", true); const before = plain(s.ensure());
+  assert.equal(s.saveCourierReplay(course.id, { ...record, seed: 8 }), false);
+  s.equipOutfit("head-moon"); assert.deepEqual(plain(s.ensure()), before);
+});
+
+test("accuracy unlocks a lasting shortcut independently of typing speed", () => {
+  const { context: c } = fixture(); const g = c.NinjaGameManager;
+  assert.equal(g.opensShortcut(2, { combo: 19, accuracy: 1 }), false);
+  assert.equal(g.opensShortcut(3, { combo: 5, accuracy: 0.98 }), true);
+  assert.equal(g.opensShortcut(3, { combo: 5, accuracy: 0.97 }), false);
+  assert.equal(g.opensShortcut(0, { combo: 20, accuracy: 0.5 }), true);
+  assert.equal(g.routeFor(0, false).id, "roof"); assert.equal(g.routeFor(2, false).id, "bamboo");
+  assert.equal(g.routeFor(4, false).id, "bridge"); assert.equal(g.routeFor(3, true).id, "garden");
+});
+
+test("cosmetic rewards persist without penalties, performance effects or teacher progress writes", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
+  assert.deepEqual(plain(s.ensure().game.owned), ["head-ai", "belt-ai", "bag-plain"]);
+  s.equipOutfit("head-moon"); assert.equal(s.ensure().game.equipped.head, "head-ai");
+  const summary = { mode: "training", correct: 40, miss: 0, maxCombo: 40, keyStats: {}, unitStats: {}, confusions: {} };
+  const event = { completed: true, mode: "training", stageId: "kyu1", purpose: "review", correct: 40, miss: 0, acc: 1, maxCombo: 40, delivered: 4 };
+  for (let i = 0; i < 3; i += 1) s.addSessionSummary("kyu1", summary, 1, { event });
+  for (const id of ["head-moon", "head-leaf", "belt-plum", "belt-wave", "bag-wave"]) assert.ok(s.ensure().game.owned.includes(id));
+  s.equipOutfit("head-moon"); assert.equal(s.ensure().game.equipped.head, "head-moon");
+  const owned = plain(s.ensure().game.owned);
+  s.addSessionSummary("kyu1", { ...summary, correct: 0, miss: 10 }, 0, { event: { ...event, correct: 0, miss: 10, acc: 0, delivered: 0 } });
+  assert.deepEqual(plain(s.ensure().game.owned), owned);
+  const before = plain(s.ensure()); s.setSetting("teacherMode", true);
+  s.addSessionSummary("kyu1", summary, 1, { event }); s.setSetting("teacherMode", false);
+  assert.deepEqual(plain(s.ensure()), before);
+});
+
+test("coaching selects this session's kana or key issue and only introduced drills", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu2");
+  const base = { keyStats: {}, confusions: {}, unitStats: {} };
+  assert.equal(c.LearningManager.advice({ ...base, unitStats: { "ん": { attempts: 4, misses: 2 } } }, "kyu4").drill, "musubi");
+  assert.equal(c.LearningManager.advice({ ...base, unitStats: { "っ": { attempts: 4, misses: 2 } } }, "kyu2").drill, "bunshin");
+  assert.equal(c.LearningManager.advice({ ...base, unitStats: { "しゃ": { attempts: 4, misses: 2 } } }, "kyu2").drill, "henge");
+  s.update((data) => { data.confusions["f>j"] = 2; });
+  assert.equal(c.LearningManager.advice({ ...base, confusions: { "f>j": 2 } }, "kyu10").drill, "pair");
+  s.update((data) => { data.confusions["a>s"] = 100; });
+  const coach = c.LearningManager.advice({ ...base, confusions: { "f>j": 2 } }, "kyu9");
+  assert.equal(coach.pair, "f>j");
+  assert.ok(c.LearningManager.drillItems("kyu9", "pair", s.ensure(), coach.pair).every((item) => /^[fj]+$/.test(item.text)));
+  assert.equal(c.LearningManager.drillItems("kyu10", "pair", s.ensure(), "f>a").length, 0);
+  assert.equal(c.LearningManager.advice({ ...base, keyStats: { f: { attempts: 4, misses: 1 } } }, "kyu10").review, true);
+  assert.equal(c.LearningManager.advice({ ...base, unitStats: { "ん": { attempts: 4, misses: 2 } } }, "kyu7").drill, undefined);
+  let captured;
+  vm.runInContext("NindaApp.closeMenuModal=()=>{};NindaApp.showScreen=()=>{};", c);
+  c.TrainingManager.startRunner = (config) => { captured = config; };
+  c.LearningManager.runPractice("nyumon2", "review", undefined, { key: "f" });
+  assert.ok(captured.items.every((item) => item.text === "f" && item.kind === "letter"));
+});
+
+test("legacy saves migrate cosmetics; invalid inventory and replay fields cannot change defaults", () => {
+  const { context: c, values } = fixture(); const s = c.SaveManager;
+  const old = plain(s.create("しのび", "kyu10")); delete old.game;
+  values.set(s.STORAGE_KEY, JSON.stringify(old)); assert.deepEqual(plain(s.load().game), plain(c.NinjaGameManager.emptyProgress()));
+  old.game = { owned: ["head-moon", "unknown"], equipped: { head: "head-moon", belt: "head-moon", bag: "unknown" }, replays: { "sato-bin": { seed: 1 } } };
+  values.set(s.STORAGE_KEY, JSON.stringify(old)); const next = s.load().game;
+  assert.equal(next.equipped.head, "head-moon"); assert.equal(next.equipped.belt, "belt-ai"); assert.equal(next.equipped.bag, "bag-plain");
+  assert.deepEqual(plain(next.replays), {}); assert.equal(next.owned.includes("unknown"), false);
+});
+
 console.log(`OK system regressions: ${tests} tests`);

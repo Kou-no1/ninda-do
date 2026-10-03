@@ -1,4 +1,4 @@
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -40,7 +40,7 @@ const UI_TEXT = globalThis.UI_TEXT = {
   observation: { title: "先生の運指かくにん表", note: "アプリがわかるのは、キーの正しさです。指のつかい方は、先生が目でかくにんします。このチェックは児童の進み具合に保存しません。", print: "かくにん表をいんさつする" },
   growth: { title: "修行のあゆみ", empty: "修行をおえると、ここに記録がのこるよ。", date: "日", stage: "修行", accuracy: "正確率", rhythm: "気配", combo: "最大連撃", compare: "まえの自分とくらべる", points: "ポイント", improved: "よくなったキー" },
   learning: {
-    title: "修行帳", today: "きょうの修行", tabs: { today: "きょう", mini: "小修行", missions: "任務", keys: "キー", reading: "読書", lessons: "課題" },
+    title: "修行帳", today: "きょうの修行", tabs: { today: "きょう", mini: "小修行", missions: "任務", keys: "キー", reading: "読書", lessons: "課題", wardrobe: "身じたく", shared: "同じお題" },
     planNames: { review: "ならった型を、もういちど", practice: "つづきの型を、たしかめる", mini: "にがてを、ひとつずつ" },
     chooseDrill: "小修行をえらぶ", questions: "問", review: "おさらい", small: "小修行", back: "修行帳へ", accuracy: "正確率",
     noPenalty: "休んでも、手に入れた灯りは消えません。自分のペースで、つづけよう。",
@@ -56,7 +56,10 @@ const UI_TEXT = globalThis.UI_TEXT = {
     invalidStage: "級をえらびなおしてね。", invalidLesson: "忍打道の課題ファイルをえらんでね。", invalidTitle: "課題の名まえは、40文字までで書いてね。", invalidItem: "お題をたしかめてね。", lockedKeys: "まだならっていないキーがあります。", lockedKana: "まだならっていないかながあります。", rightsRequired: "お題の重なりと、使ってよい文かをたしかめてね。", fileLarge: "課題ファイルが大きすぎます。"
   },
   readability: { title: "読みやすさ", size: "文字を大きく", spacing: "行の間をひろく", symbols: "ゆびの記号も見せる", motion: "動きをひかえる", teacherLessons: "先生の課題巻物をつくる" },
-  courier: { seconds: "びょう", best: "じこベスト", locked: "に昇段するとひらく", back: "もどる", choose: "便をえらぶ", courses: "つの便", delivered: "とどけた巻物", fast: "門に着く前にとどけた巻物", points: "荷物点", waiting: "門でまっています。つづきをうとう。", onWay: "巻物をはこんでいます。", scene: "月の下で、忍者が巻物をはこぶ里の道" }
+  coach: { title: "ししょうのひとこと", pair: "{a}と{b}のばしょを、ゆびでたしかめよう。うったら、かまえにもどそう。", key: "{key}のばしょを、もういちどたしかめよう。あわてず、正しい指でうとう。", calm: "正しく、ひと打ちずつうてたね。つぎも、ゆびとかまえをたしかめよう。", action: "この小修行をする", review: "この型をおさらいする" },
+  wardrobe: { title: "忍者の身じたく", slots: { head: "ずきん", belt: "おび", bag: "巻物ぶくろ" }, equipped: "身につけています", equip: "身につける", locked: "まだ修行中", preview: "先生プレビュー", note: "身じたくで点数や速さは変わりません。手に入れたものは、休んでもなくなりません。", avatar: "身じたくをした忍者" },
+  shared: { title: "共通お題の合言葉", create: "合言葉をつくる", course: "便", seed: "お題の番号", code: "合言葉", import: "合言葉をたしかめる", start: "この道ではじめる", select: "コピー用にえらぶ", invalid: "合言葉がちがうみたい。ぜんぶ入っているか、たしかめてね。", outdated: "お題の版がちがいます。今の版で合言葉をつくりなおしてね。", note: "同じ合言葉なら、お題の順も同じです。記録はこの端末だけにのこり、どこにも送りません。", locked: "この便の段位になると、はじめられます。", result: "今回の合言葉", generated: "合言葉をつくりました。", same: "共通お題" },
+  courier: { seconds: "びょう", best: "じこベスト", locked: "に昇段するとひらく", back: "もどる", choose: "便をえらぶ", courses: "つの便", delivered: "とどけた巻物", fast: "門に着く前にとどけた巻物", points: "荷物点", waiting: "門でまっています。つづきをうとう。", onWay: "巻物をはこんでいます。", scene: "月の下で、忍者が巻物をはこぶ里の道", newRun: "あたらしい道を走る", newDesc: "お題の順をかえて、巻物をとどける。", ghostRun: "前回の道を、分身と走る", ghostDesc: "前回と同じお題で、自分の分身と走る。", noGhost: "一回おえると、分身がのこります。", ghost: "前回の自分", shortcut: "庭への道がひらいた", destination: "とどけ先", arrived: "便をおえました", routeCount: "とどけ先", ghostNote: "分身は前回の自分です。先生のデモは記録しません。", sharedDesc: "合言葉で、同じお題の道を走る。" }
 };
 
 const NindaApp = globalThis.NindaApp = (function () {
@@ -395,7 +398,7 @@ const NindaApp = globalThis.NindaApp = (function () {
           ${options.back ? `<button type="button" class="menu-back" data-menu-back>${escapeHtml(options.back.label)}</button>` : ""}
         </div>
       </div>
-      <div class="menu-card-list">${cardsHtml}</div>`;
+      <div class="menu-card-list">${cardsHtml}</div>${options.footerHtml || ""}`;
     menuState = { overlay, mount, previousFocus, actionMap, back: options.back || null };
     overlay.hidden = false;
     overlay.onclick = (event) => {

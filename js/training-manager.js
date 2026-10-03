@@ -17,6 +17,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   let modalKeyListenerReady = false;
   let modalState = null;
   let persistenceReady = false;
+  const ITEM_TRANSITION_MS = 120;
 
   function byId(id) {
     return document.getElementById(id);
@@ -59,13 +60,15 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     return items;
   }
 
-  function buildReviewItems(stage) {
+  function buildReviewItems(stage, focusKeys) {
     const stages = CURRICULUM_DATA.stages.filter((item) => item.type === "kyu");
     const keySet = new Set(stages.slice(0, stages.findIndex((item) => item.id === stage.id) + 1).flatMap((item) => item.newKeys));
     const ref = refByName(stage.wordsRef);
     const kind = stage.training[stage.training.length - 1].kind;
     const pool = (kind === "in" ? ref.in : kind === "sentence" ? ref.sentences : ref.words).filter((text) => InputEngine.isTypeable(text, keySet));
-    return adaptiveItems(pool, MetricsEngine.weakKeys(SaveManager.ensure().keyStats, 5).filter((item) => keySet.has(item.key)).map((item) => item.key),
+    const weak = focusKeys && focusKeys.length ? focusKeys.filter((key) => keySet.has(key))
+      : MetricsEngine.weakKeys(SaveManager.ensure().keyStats, 5).filter((item) => keySet.has(item.key)).map((item) => item.key);
+    return adaptiveItems(pool, weak,
       CURRICULUM_DATA.review.counts[kind], kind, keySet);
   }
 
@@ -173,7 +176,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
           if (active !== run || run.complete) return;
           run.transitioning = false;
           nextItem();
-        }, 120);
+        }, ITEM_TRANSITION_MS);
       }
     });
   }
@@ -290,7 +293,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     if (!active || active.complete) return;
     if (active.index >= active.items.length) {
       if (active.config.seconds && active.items.length) {
-        active.items.push(...sample(active.config.pool || active.config.items, (active.config.pool || active.config.items).length));
+        active.items.push(...(active.config.refillItems ? active.config.refillItems() : sample(active.config.pool || active.config.items, (active.config.pool || active.config.items).length)));
       } else {
         completeRunner();
         return;
@@ -449,6 +452,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
       : "";
     const resultData = state.resultData || {};
+    const advice = state.config.screen === "S2" ? LearningManager.advice(summary, state.config.contentStageId || state.config.stageId) : null;
     const speedHtml = isJissen
       ? `<div class="result-speed">
           ${Number.isFinite(resultData.score) ? `<div><span>スコア</span><strong>${resultData.score}</strong></div>` : ""}
@@ -456,7 +460,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
           ${resultData.tier ? `<div class="tier-box ${tierClass(resultData.tier)}"><span>Tier</span><strong><span class="tier-badge">${SVG_ICONS.tierBadge()}</span>${escapeHtml(resultData.tier)}</strong></div>` : ""}
         </div>`
       : "";
-    const body = `<div class="result-modal">
+    const body = `<div class="result-modal ${resultData.challengeCode ? "result-courier" : ""}">
         ${resultData.bestUpdated ? `<div class="result-best-ribbon">じこベスト！</div>` : ""}
         ${resultData.tier === "月光" ? `<div class="moon-bloom" aria-hidden="true"></div>` : ""}
         <div class="result-main-stat">
@@ -473,6 +477,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         ${weakKeysHtml(summary)}
         ${growthHtml(summary, state.previousRecord)}
         ${resultData.detail ? `<p class="result-game-detail">${escapeHtml(resultData.detail)}</p>` : ""}
+        ${resultData.challengeCode ? `<label class="result-challenge">${UI_TEXT.shared.result}<input type="text" readonly value="${escapeHtml(resultData.challengeCode)}" aria-label="${UI_TEXT.shared.code}"></label>` : ""}
+        ${advice ? `<div class="result-coach"><h3>${UI_TEXT.coach.title}</h3><p>${escapeHtml(advice.text)}</p></div>` : ""}
         ${parsed.rest ? `<div class="result-message">${parsed.rest}</div>` : ""}
         ${teacherNote}
       </div>`;
@@ -490,6 +496,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     ];
     const contextAction = resultContextAction(state);
     if (contextAction) actions.push(contextAction);
+    if (advice && (advice.drill || advice.review)) actions.push({ id: "coach", label: advice.drill ? UI_TEXT.coach.action : UI_TEXT.coach.review,
+      run() { stop(false); LearningManager.runPractice(advice.stageId, advice.drill ? "mini" : "review", advice.drill, { pair: advice.pair, key: advice.key }); } });
     actions.push({
       id: "home",
       label: "さとへもどる",
@@ -600,7 +608,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         runModalAction(modalState.escapeActionId);
         return;
       }
-      if (event.key === "Enter" && !isEditableTarget(event.target)) {
+      if (event.key === "Enter" && (!isEditableTarget(event.target) || event.target.readOnly)) {
         const focused = event.target && event.target.closest && event.target.closest("[data-modal-action]");
         const actionId = focused ? focused.dataset.modalAction : modalState.defaultActionId;
         if (!actionId) return;
@@ -846,6 +854,6 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     displayHtml,
     openModal,
     closeModal,
-    buildReviewItems, adaptiveItems, checkpoint
+    buildReviewItems, adaptiveItems, checkpoint, itemTransitionMs: ITEM_TRANSITION_MS
   };
 })();

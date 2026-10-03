@@ -8,6 +8,11 @@ const LEARNING_DATA = globalThis.LEARNING_DATA = {
     { id: "henge", label: "ゃゅょの小修行", desc: "ふたつのかなを、ひと組でうとう。", kana: ["ゃ", "ゅ", "ょ"], count: 6 },
     { id: "pair", label: "とりちがえの小修行", desc: "まちがえやすいふたつのキーを、たしかめよう。", count: 8, minMisses: 2 }
   ],
+  coaching: [
+    { id: "musubi", parts: ["ん"], drill: "musubi", text: "んのあとの音を、たしかめよう。ぼいん・な行・や行の前と、ことばのさいごは、nnでむすぼう。" },
+    { id: "bunshin", parts: ["っ"], drill: "bunshin", text: "小さいっを、とばさずうとう。つぎの子音をかさねるか、xtuでうてるよ。" },
+    { id: "henge", parts: ["ゃ", "ゅ", "ょ"], drill: "henge", text: "小さいゃゅょは、前のかなとひと組。ローマ字をひと組ずつ、たしかめよう。" }
+  ],
   missions: [
     { id: "gate", title: "里の門をひらく", story: "門番が、道場への道をあけてくれた。ひと打ちずつ、かまえをたしかめよう。", after: null, goal: "practice", n: 3, reward: "門に、ひとつ目の灯りがともった。" },
     { id: "bridge", title: "橋のたしかめ", story: "里の橋をわたる前に、ならった型をもういちど。あわてず、足もとから。", after: "gate", goal: "review", n: 3, reward: "橋の向こうに、灯りが見えた。" },

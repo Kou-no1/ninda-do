@@ -109,12 +109,14 @@ const LearningManager = globalThis.LearningManager = (function () {
     return [...new Map(texts.map((item) => [item.text, item])).values()].filter((item) => InputEngine.isTypeable(item.text, sets.keys));
   }
 
-  function drillItems(id, drillId, save) {
+  function drillItems(id, drillId, save, focusPair) {
     const drill = LEARNING_DATA.drills.find((item) => item.id === drillId);
     if (!drill) return [];
     const keys = stageSets(id).keys;
     if (drill.id === "pair") {
-      const pair = Object.entries(save.confusions).filter(([name, count]) => count >= drill.minMisses && keys.has(name[0]) && keys.has(name[2])).sort((a, b) => b[1] - a[1])[0];
+      if (focusPair && (!/^[a-z.,-]>[a-z.,-]$/.test(focusPair) || !keys.has(focusPair[0]) || !keys.has(focusPair[2]))) return [];
+      const pair = focusPair ? [focusPair, drill.minMisses]
+        : Object.entries(save.confusions).filter(([name, count]) => count >= drill.minMisses && keys.has(name[0]) && keys.has(name[2])).sort((a, b) => b[1] - a[1])[0];
       if (!pair) return [];
       const [a, b] = [pair[0][0], pair[0][2]];
       if (stage(id).type === "nyumon") return TrainingManager.sample([a, b], drill.count).map((text) => ({ text, kind: "letter" }));
@@ -124,19 +126,22 @@ const LearningManager = globalThis.LearningManager = (function () {
     return TrainingManager.sample(pool, drill.count);
   }
 
-  function runPractice(id, purpose, drillId) {
+  function runPractice(id, purpose, drillId, focus) {
     const target = stage(id);
     if (!target || !SaveManager.stageUnlocked(id)) return;
     let items;
-    if (purpose === "mini") items = drillItems(id, drillId, SaveManager.ensure());
-    else if (target.type === "nyumon") items = TrainingManager.sample(NYUMON_WORDS.sections[id], LEARNING_DATA.review.count).map((text) => ({ text, kind: "letter" }));
-    else items = TrainingManager.buildReviewItems(target).slice(0, LEARNING_DATA.review.count);
+    if (purpose === "mini") items = drillItems(id, drillId, SaveManager.ensure(), focus && focus.pair);
+    else if (target.type === "nyumon") {
+      const letters = focus && focus.key && stageSets(id).keys.has(focus.key) ? [focus.key] : NYUMON_WORDS.sections[id];
+      items = TrainingManager.sample(letters, LEARNING_DATA.review.count).map((text) => ({ text, kind: "letter" }));
+    }
+    else items = TrainingManager.buildReviewItems(target, focus && focus.key ? [focus.key] : null).slice(0, LEARNING_DATA.review.count);
     if (!items.length) return;
     const label = purpose === "mini" ? LEARNING_DATA.drills.find((item) => item.id === drillId).label : purpose === "practice" ? UI_TEXT.learning.planNames.practice : UI_TEXT.learning.review;
     NindaApp.closeMenuModal(false);
     NindaApp.showScreen("S2");
     TrainingManager.startRunner({ screen: "S2", stageId: id, recordId: `${id}:${purpose}:${drillId || ""}`, title: `${target.label} ${label}`, items,
-      guideLevel: target.guideLevelTraining, mode: "training", purpose, retry() { runPractice(id, purpose, drillId); },
+      guideLevel: target.guideLevelTraining, mode: "training", purpose, retry() { runPractice(id, purpose, drillId, focus); },
       onComplete(summary) { AchievementManager.checkSession(summary); },
       resultContextAction: { id: "notebook", label: UI_TEXT.learning.back, run() { TrainingManager.stop(false); open("today"); } } });
   }
@@ -165,7 +170,8 @@ const LearningManager = globalThis.LearningManager = (function () {
         render(buttons[index].dataset.learningTab); tabs.querySelector(`[data-learning-tab="${currentTab}"]`).focus();
       });
     });
-    const views = { today: renderToday, mini: renderMini, missions: renderMissions, keys: renderKeys, reading: renderReading, lessons: renderLessons };
+    const views = { today: renderToday, mini: renderMini, missions: renderMissions, keys: renderKeys, reading: renderReading, lessons: renderLessons,
+      wardrobe: NinjaGameManager.renderWardrobe, shared: NinjaGameManager.renderShared };
     (views[currentTab] || renderToday)(mount, save);
   }
 
@@ -280,11 +286,29 @@ const LearningManager = globalThis.LearningManager = (function () {
     const valid = parseLesson(pack);
     if (!SaveManager.stageUnlocked(valid.stageId)) return;
     NindaApp.closeMenuModal(false); NindaApp.showScreen("S2");
-    TrainingManager.startRunner({ screen: "S2", stageId: "lesson", recordId: valid.id, lessonId: valid.id, title: valid.title,
+    TrainingManager.startRunner({ screen: "S2", stageId: "lesson", contentStageId: valid.stageId, recordId: valid.id, lessonId: valid.id, title: valid.title,
       items: valid.items.map((text) => ({ text, kind: valid.kind })), guideLevel: stage(valid.stageId).guideLevelTraining, mode: "training", purpose: "lesson",
       retry() { startLesson(valid); }, onComplete(summary) { AchievementManager.checkSession(summary); },
       resultContextAction: { id: "lessons", label: UI_TEXT.learning.back, run() { TrainingManager.stop(false); open("lessons"); } } });
   }
 
-  return { emptyState, normalizeState, applySession, stageSets, parseLesson, plan, drillItems, readingEntries, open, render, runPractice, startLesson };
+  function advice(summary, stageId, save) {
+    const data = save || SaveManager.ensure();
+    const id = stage(stageId) ? stageId : data.unlockedStage;
+    const options = LEARNING_DATA.coaching.map((rule) => ({ rule, misses: Object.entries(summary.unitStats || {})
+      .filter(([unit]) => rule.parts.some((part) => unit.includes(part))).reduce((sum, [, stat]) => sum + stat.misses, 0) }))
+      .filter((item) => item.misses > 0).sort((a, b) => b.misses - a.misses);
+    for (const { rule } of options) {
+      if (drillItems(id, rule.drill, data).length) return { text: rule.text, stageId: id, drill: rule.drill };
+    }
+    const keys = stageSets(id).keys;
+    const pair = Object.entries(summary.confusions || {}).filter(([name, count]) => count >= LEARNING_DATA.drills.find((item) => item.id === "pair").minMisses
+      && keys.has(name[0]) && keys.has(name[2])).sort((a, b) => b[1] - a[1])[0];
+    if (pair && drillItems(id, "pair", data, pair[0]).length) return { text: UI_TEXT.coach.pair.replace("{a}", pair[0][0]).replace("{b}", pair[0][2]), stageId: id, drill: "pair", pair: pair[0] };
+    const weak = Object.entries(summary.keyStats || {}).filter(([key, stat]) => keys.has(key) && stat.misses > 0)
+      .sort((a, b) => b[1].misses - a[1].misses || b[1].misses / b[1].attempts - a[1].misses / a[1].attempts)[0];
+    return weak ? { text: UI_TEXT.coach.key.replace("{key}", weak[0]), stageId: id, review: true, key: weak[0] } : { text: UI_TEXT.coach.calm };
+  }
+
+  return { emptyState, normalizeState, applySession, stageSets, parseLesson, plan, drillItems, readingEntries, open, render, runPractice, startLesson, advice };
 })();
