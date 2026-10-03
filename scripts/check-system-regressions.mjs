@@ -377,22 +377,24 @@ test("legacy saves migrate cosmetics; invalid inventory and replay fields cannot
 
 test("literature resolves audited passages verbatim and gates pending works even for teachers", () => {
   const { context: c } = fixture(); const l = c.LiteratureManager; const s = c.SaveManager;
-  assert.equal(c.LITERATURE_DATA.courses.length, 4); assert.equal(l.works().length, 23);
+  assert.equal(c.LITERATURE_DATA.courses.length, 4); assert.equal(l.works().length, 28);
   for (const work of l.works()) {
     const items = l.buildItems(work.id);
     assert.equal(items.length, work.passages.length);
     for (const [index, ref] of work.passages.entries()) {
-      const entry = c[ref.ref].items.find((item) => item.kana.startsWith(ref.starts));
+      const entry = ref.ref ? c[ref.ref].items.find((item) => item.kana.startsWith(ref.starts)) : ref;
       assert.equal(items[index].text, entry.kana); assert.equal(items[index].display, entry.display);
       assert.deepEqual(plain(items[index].ruby), plain(entry.ruby)); assert.equal(items[index].source, entry.source);
       assert.equal(items[index].partIndex, index); assert.equal(items[index].partTotal, items.length);
     }
   }
-  assert.equal(c.LearningManager.readingEntries().length, 36);
+  assert.equal(c.LearningManager.readingEntries().length, 59);
   s.create("しのび", "kyu1"); s.update((data) => { data.dan = "chunin"; }); assert.equal(l.unlocked(), false);
   s.update((data) => { data.dan = "jonin"; }); assert.equal(l.unlocked(), true);
   s.setSetting("teacherMode", true); assert.equal(l.unlocked(), true);
-  for (const work of c.LITERATURE_DATA.works.filter((item) => item.audit === "pending")) assert.equal(l.buildItems(work.id).length, 0);
+  const hidden = c.LITERATURE_DATA.works.find((work) => work.id === "misuzu-kotori");
+  hidden.audit = "pending"; assert.equal(l.buildItems(hidden.id).length, 0);
+  hidden.audit = "approved"; hidden.useReview = "確認待ち"; assert.equal(l.buildItems(hidden.id).length, 0);
 });
 
 test("only completed literature excerpts are recorded; backup and teacher gates preserve book progress", () => {
@@ -403,6 +405,7 @@ test("only completed literature excerpts are recorded; backup and teacher gates 
   assert.deepEqual(plain(s.ensure().learning.books), {});
   s.addSessionSummary("literature:neko:read", summary, 1, { event });
   assert.deepEqual(plain(s.ensure().learning.books.neko), { date: "2026-10-03", accuracy: 20 / 21 });
+  c.LITERATURE_DATA.works.find((work) => work.id === "misuzu-kotori").audit = "pending";
   s.addSessionSummary("literature:misuzu-kotori:read", summary, 1, { event: { ...event, literatureId: "misuzu-kotori" } });
   assert.equal(s.ensure().learning.books["misuzu-kotori"], undefined);
   const before = plain(s.ensure()); const backup = s.exportBackup(); s.reset(); s.restoreBackup(backup);
@@ -414,6 +417,7 @@ test("only completed literature excerpts are recorded; backup and teacher gates 
 
 test("old and malformed saves normalize literature books without accepting pending work records", () => {
   const { context: c } = fixture(); const l = c.LearningManager;
+  c.LITERATURE_DATA.works.find((work) => work.id === "misuzu-kotori").audit = "pending";
   assert.deepEqual(plain(l.normalizeState({}).books), {});
   const raw = { books: { neko: { date: "2026-10-03", accuracy: 1, extra: "drop" }, unknown: { date: "2026-10-03", accuracy: 1 },
     "misuzu-kotori": { date: "2026-10-03", accuracy: 1 }, botchan: { date: "bad", accuracy: 1 }, melos: { date: "2026-10-03", accuracy: 2 } } };
@@ -437,7 +441,6 @@ test("literature timed refills shuffle works but preserve each work's passage or
   const { context: c } = fixture(); c.SaveManager.create("しのび", "kyu1");
   c.SaveManager.setSetting("teacherMode", true);
   const poem = c.LITERATURE_DATA.works.find((work) => work.id === "misuzu-kotori");
-  poem.audit = "approved"; delete poem.useReview;
   let captured;
   vm.runInContext("NindaApp.closeMenuModal=()=>{};NindaApp.showScreen=()=>{};", c);
   c.TrainingManager.sample = (pool) => pool.slice().reverse();
@@ -464,7 +467,7 @@ test("literature integrity rejects unaudited activation, broken references and s
   fs.copyFileSync(path.join(root, "scripts/check-data-integrity.mjs"), path.join(directory, "scripts/check-data-integrity.mjs"));
   const file = path.join(directory, "data/literature-data.js"); const original = fs.readFileSync(file, "utf8");
   for (const [mutation, expected] of [
-    ['LITERATURE_DATA.works.find(w=>w.id==="misuzu-kotori").audit="approved";', /未確認の利用条件/],
+    ['LITERATURE_DATA.works.find(w=>w.id==="misuzu-kotori").useReview="確認待ち";', /未確認の利用条件/],
     ['LITERATURE_DATA.works.find(w=>w.id==="neko").passages[0].starts="ないお題";', /元の名文を一意/],
     ['{const p=LITERATURE_DATA.works.find(w=>w.id==="misuzu-kotori").passages[0];p.displayLines=[p.display.slice(0,3),p.display.slice(3)];}', /改行がルビを分断/]
   ]) {
