@@ -68,3 +68,25 @@ runnerは保存済み打鍵・お題・キー統計との差分を30秒/終了/u
 
 完全バックアップはformat:ninda-do-backup/version:1/exportedAt/save、2MiB上限。検査・差分確認後にSaveManager.restoreBackupで置換。先生フラグはOFFへ。合言葉はビット集合の簡易復元で、詳細記録や獲得順は保持しない。
 先生の観察チェックは保存データに含めず、描画側のSetだけ。syncAdapterはonEvent/flush、既定null。全イベント経路を統一し、例外を保存へ波及させない。
+
+## v1.10.0 追加データと保存
+
+LEARNING_DATAはreview:{intervals,accuracy,count}、mastery:{minAttempts,secure,developing}、lesson:{format,version,maxBytes,maxItems,maxLength}、drills:[id,label,desc,kana?,count,minMisses?]、missions:[id,title,story,after,goal,n,unlockDan?,reward]、readingNotes:{source:独自解説}。
+GAME_DATAはlabel/desc/guideLevel、scoring:{delivery,fastBonus}、travel:{baseSeconds,secondsPerKey}、courses:[id,label,desc,dan,seconds,minLength,maxLength]。RANK_DATA.jissenMenuのcourierは独立した3便選択を開く。
+
+```js
+{ unitStats: {"ん": {attempts: 20, misses: 2}},
+  confusions: {"f>j": 3},
+  learning: {
+    reviews: {kyu4: {step: 0, due: "2026-10-04", last: "2026-10-03"}},
+    counters: {practice: 0, review: 0, calm: 0, delivered: 0},
+    missions: [], readings: [], lessonPack: null, completedLessons: []
+  },
+  best: {courier: {"sato-bin": {score: 100, words: 8, date: "2026-10-03"}}},
+  settings: {textSize: "normal", lineSpacing: "normal", fingerSymbols: false, reduceMotion: false}
+}
+```
+
+readingsは提供名文のkanaを安定キーとして格納する。completedLessonsは直近100個の内容ハッシュID。lessonPackは最後に明示取込みした一つの課題。複数プロファイル／クラス情報は持たない。
+課題形式は`{format:"ninda-do-lesson",v:1,title,stageId,kind,items:[string],rights:"original-or-permitted",id}`。idは正規化内容のFNV-1a識別子（暗号／安全性の証明ではない）。取込み時に再計算する。
+session_end追加はstageId/purpose/lessonId/readings/delivered。中断では学習予定・任務・読書・課題完了を加算しないが、実打鍵のunitStats/confusionsは差分保存する。完全バックアップには追加記録を含み、合言葉の収録フィールドは従来のまま。

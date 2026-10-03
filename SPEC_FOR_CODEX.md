@@ -1,10 +1,12 @@
-# 忍打道 —NINDA DO— 現行統合仕様 v1.9.0
+# 忍打道 —NINDA DO— 現行統合仕様 v1.10.0
 
 正式名称は **忍打道 —NINDA DO—**（にんだどう）。ロゴ・タイトル・README・metaを統一する。
 発注者: Kou-no1。原仕様発注日: 2026-07-13。
 リポジトリ: https://github.com/Kou-no1/ninda-do.git 。公開: https://kou-no1.github.io/ninda-do/ 。
 
 本書は原仕様v1.0、承認済みPATCH-01〜10、2026-10-03の監査改善を統合した現行仕様であり、原文の逐語複製ではない。原仕様の絶対規則は維持する。履歴は `_reference/patch-history.md`、判断・検証・語彙監査表は `IMPLEMENTATION_NOTES.md`。スキーマ詳細は `_reference/data-design-v0.md`、全カリキュラム数値は `_reference/curriculum-map.md` と一体で読む。
+
+v1.10.0では承認された7拡張とオリジナル実戦ゲーム「巻物便」を追加する。S7の復習・小修行・任務・習熟図・読書・課題と、S6の読みやすさ設定が対象。巻物便は下忍以降のみ。詳細は末尾の追加仕様に記す。
 
 ## 0. 目的・絶対規則
 
@@ -25,12 +27,12 @@
 
 ルート: index.html/style.css/README.md/SPEC_FOR_CODEX.md/IMPLEMENTATION_NOTES.md/favicon.svg/og.png/poster.html。
 _reference: data-design-v0.md/curriculum-map.md/ui-mockup.html/patch-history.md。
-data: finger/romaji/jutsu/nickname/curriculum/rankの各-data.js、wordsにはnyumon・kyu10〜1・dan単語/文章・michi5コース。
-js: main/input-engine/metrics-engine/guide-renderer/training-manager/exam-manager/achievement-manager/collection-renderer/save-manager/audio-manager/svg-icons。
+data: finger/romaji/jutsu/nickname/curriculum/rank/learning/gameの各-data.js、wordsにはnyumon・kyu10〜1・dan単語/文章・michi5コース。
+js: main/input-engine/metrics-engine/guide-renderer/training-manager/exam-manager/achievement-manager/collection-renderer/save-manager/audio-manager/svg-icons/learning-manager/ninja-game-manager。
 scripts: check-data-integrity.mjs/check-system-regressions.mjs/check-browser-regressions.mjs。
 追加ファイルの理由はNOTESに残す。
 
-script順: finger→romaji→jutsu→nickname→curriculum→rank→words（入門/10級〜1級/dan/michi）→svg-icons→save→audio→input→metrics→guide→training→exam→achievement→collection→main。posterはfinger→svg-icons→guide→初期化のみ。
+script順: finger→romaji→jutsu→nickname→curriculum→rank→learning→game→words（入門/10級〜1級/dan/michi）→svg-icons→save→audio→input→metrics→guide→training→exam→achievement→collection→learning-manager→ninja-game-manager→main。posterはfinger→svg-icons→guide→初期化のみ。
 
 ## 1. 世界観・文言
 
@@ -53,6 +55,7 @@ script順: finger→romaji→jutsu→nickname→curriculum→rank→words（入�
 | S4 | 巻物庫 | 巻物紋章・二つ名短冊・疾風番付 |
 | S5 | 免状 | 名前/二つ名/段位/累計/最高気配/連撃/番付最高位/成長記録/印刷/合言葉 |
 | S6 | 設定 | 音/明表示/漢字表示/ポスター/観察表/完全バックアップ/合言葉復元/二段階削除/version/先生モード |
+| S7 | 修行帳 | 今日の復習・小修行・任務・キー習熟・読書・オフライン課題 |
 
 sectionをhiddenで遷移。Tab/Enter/Esc、可視フォーカス。修行中Escは確認後中断し、結果・罰を出さない。打った分は保存するが、修行完了/合格にはしない。
 
@@ -206,3 +209,16 @@ node scripts/check-browser-regressions.mjs
 
 mainへ意味単位コミット、push直前integrity。GitHub Pages main/(root)、ビルド不要。機能minor、修正patch、APP_VERSION/README更新。原M1〜M6と全PATCH履歴を参照文書に保つ。
 他者ランキング・複数プロファイル・実送信/GAS・アカウント・BGM・外部フォント・数字/英単語/かな入力方式は非目標。合言葉/完全バックアップは手動移行だけ。
+
+## 10. 修行帳と巻物便（v1.10.0）
+
+- 今日の修行は未復習／期限到来の既習ステージ、最遠解放地点の型、小修行への入口。初期復習間隔は1・3・7・14日。正確率90%以上で予定を更新し、おさらい完了は同日には段階を重ねない。間隔は授業で調整する初期値で、学習効果を保証する数値ではない。失敗・欠席で報酬や段位を失わない。
+- 小修行はん／っ／拗音／取り違えキー。級の累積キー・かなだけを使う。入門のキーは級に混ぜない。かな統計・取り違えは唯一の打鍵イベントから集計し、途中保存では差分だけ加算する。
+- 任務は正確率・おさらい・静かな気配・読書・配送を目標とする独自の短い物語。獲得した灯りは消さず、称号や15術の集合を勝手に増やさない。
+- キー習熟図は試行10以上で正確率と記号を表示し、試行不足は「—」。指色は変更せず、身体の運指は推定しない。
+- 読書帳は提供名文36本の打ち終えた項目を保存する。かな・display・source・rubyは不変。新規解説は独自文としてLEARNING_DATAに分離。先生は未読もプレビュー可能、記録は書かない。
+- 課題巻物は先生モードで作るオフラインJSON。stageId・kind・title・items・利用権確認を持ち、100KiB／40問／各80文字まで。未導入かな・キー／空／重複／HTML風タイトル等を拒否する。導入予定の級の課題は取り込めるが、児童の開始は段階ゲートを通す。課題完了で昇級・practicedStagesを変更しない。先生の取込みは一時プレビューだけ。
+- 読みやすさ設定は文字サイズ、行間、指記号、動きの抑制。localStorageに保持し、OSのreduced-motionも併用する。印刷の白地・墨・A4一枚は不変。
+- 巻物便は下忍／中忍／上忍で里60秒／山75秒／月90秒を順次解放。先生は全便をデモできる。語彙はDAN_WORDS、guideLevelはGAME_DATA、出題は一巡ごとに重複なし。
+- 忍者は巻物を門へ運び、正打完了で配送。移動時間を超えても同じお題を保持し、誤打で進まない。便全体の制限時間で終了する。得点はround((配送10点＋早着0〜10点の累計)×正確率)。Tierは付けず、便ごとの自己ベストだけ保存する。荷物の積み上がりと配送の小さな音で手応えを出す。
+- runnerは入力／IME／ガイド／気配／連撃／時計／保存／結果を共用し、ゲーム演出はonStart/onItemStart/onItemComplete/onUpdateのフックで分離する。先生モードは新規フィールドにもSaveManagerの中央no-opゲートを適用する。級の画面にゲーム得点・速度DOMを残さない。
