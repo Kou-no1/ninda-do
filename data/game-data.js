@@ -6,6 +6,7 @@ const GAME_DATA = globalThis.GAME_DATA = {
   travel: { baseSeconds: 3, secondsPerKey: 0.55 },
   replay: { version: 1, maxDeliveries: 500 },
   journey: { deliveriesPerScene: 2, cleanDeliveries: 3, combo: 20, accuracy: 0.98 },
+  lantern: { label: "灯つなぎ便", seconds: 30, cleanPerLight: 2, bonusSeconds: 4, maxLights: 3 },
   routes: [
     { id: "roof", label: "里の屋根", destination: "門番の家" },
     { id: "bamboo", label: "竹林", destination: "竹林の小屋" },

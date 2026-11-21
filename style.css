@@ -107,6 +107,7 @@ body[data-theme="light"] {
 [hidden] { display: none !important; }
 
 html, body { margin: 0; min-height: 100%; background: var(--yoru); color: var(--tsuki); }
+@media screen { body { min-height: 100vh; } }
 
 body {
   font-family: "Noto Sans JP", "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", system-ui, sans-serif;
@@ -1327,6 +1328,43 @@ body[data-line-spacing="wide"] .learning-mount, body[data-line-spacing="wide"] .
 .courier-mode .dojo { gap: 14px; min-height: 0; }
 .courier-mode .prompt-kana { margin-top: 4px; }
 .courier-mode .combo-fx { bottom: 12px; }
+
+.lantern-hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 4px 20px;
+  border-block: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--tsuki);
+  font-size: 14px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.lantern-icons { display: inline-flex; align-items: center; gap: 5px; }
+.lantern-icon {
+  display: block;
+  flex: none;
+  width: 21px;
+  height: 28px;
+  stroke-width: 1.8;
+  color: var(--muted);
+}
+.lantern-icon .lantern-flame { visibility: hidden; }
+.lantern-icon.is-lit { color: var(--chochin); }
+.lantern-icon.is-lit .lantern-paper { fill: var(--kin); }
+.lantern-icon.is-lit .lantern-flame { visibility: visible; color: var(--sumi); }
+.lantern-progress { font-weight: 700; }
+.lantern-target { margin-inline-start: auto; color: var(--muted); }
+@media (max-height: 800px) {
+  .courier-mount:has(.lantern-hud:not([hidden])) .courier-scene { height: 144px; }
+}
+@media (forced-colors: active) {
+  .lantern-icon.is-lit { color: Highlight; forced-color-adjust: none; }
+  .lantern-icon.is-lit .lantern-paper { fill: Highlight; }
+  .lantern-icon.is-lit .lantern-flame { color: HighlightText; }
+}
 .result-game-detail { color: var(--sumi); font-variant-numeric: tabular-nums; }
 .courier-route-bar { display: flex; gap: 16px; align-items: center; min-height: 30px; padding: 0 20px; font-size: 13px; flex-wrap: wrap; }
 .courier-route-bar #courierShortcut { margin-left: auto; color: var(--kin); }
@@ -1460,6 +1498,14 @@ body[data-line-spacing="wide"] .learning-mount, body[data-line-spacing="wide"] .
 .result-courier .result-speed div { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px; }
 .result-courier .result-speed strong { font-size: 32px; }
 .result-courier .result-game-detail { margin: 0; font-size: 13px; line-height: 1.6; }
+.result-lantern .result-game-detail {
+  padding: 8px 12px;
+  border-inline-start: 3px solid var(--kin);
+  background: var(--washi);
+  color: var(--sumi);
+  font-size: 16px;
+  font-weight: 700;
+}
 .result-courier .result-weak { padding-top: 5px; }
 .result-courier .result-weak h3 { font-size: 14px; margin-bottom: 4px; }
 .result-courier .result-weak-list span { font-size: 13px; padding: 3px 8px; }

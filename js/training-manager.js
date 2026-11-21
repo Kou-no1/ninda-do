@@ -188,14 +188,21 @@ const TrainingManager = globalThis.TrainingManager = (function () {
         || isEditableTarget(event.target) || event.key === "Escape" || modalState
         || !byId("menuOverlay").hidden || byId(active.config.screen).hidden) return;
       const run = active;
-      if (run.config.seconds && run.metrics.elapsedSeconds() >= run.config.seconds) { completeRunner(); return; }
+      const acceptedAt = run.deadlineSeconds ? run.metrics.elapsedSeconds() : undefined;
+      if (run.deadlineSeconds && acceptedAt >= run.deadlineSeconds) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        completeRunner();
+        return;
+      }
       const result = run.session.handleKey(event.key);
       if (result !== "ignore") event.preventDefault();
       if (result === "done") {
         run.transitioning = true;
         run.completedItems += 1;
         run.completedTexts.push(run.items[run.index].text);
-        if (run.config.onItemComplete) run.config.onItemComplete(run.items[run.index], run);
+        if (run.config.onItemComplete) run.config.onItemComplete(run.items[run.index], run, acceptedAt);
+        if (run.deadlineSeconds) updateRemaining(run);
         updateUi();
         run.transitionTimer = window.setTimeout(() => {
           if (active !== run || run.complete) return;
@@ -230,6 +237,10 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     });
   }
 
+  function updateRemaining(run) {
+    run.remaining = Math.max(0, Math.ceil(run.deadlineSeconds - run.metrics.elapsedSeconds()));
+  }
+
   function startRunner(config) {
     ensureKeyListener();
     ensurePersistence();
@@ -238,6 +249,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     cleanupComboTimer();
     cleanupItemTimers();
     const clock = config.clock || (() => performance.now());
+    const deadlineSeconds = config.seconds || 0;
     active = {
       config,
       items: (config.items || []).slice(),
@@ -252,7 +264,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       missCount: 0,
       lastEvent: null,
       startedAt: Date.now(),
-      remaining: config.seconds || 0,
+      deadlineSeconds,
+      remaining: deadlineSeconds,
       timer: null,
       complete: false,
       transitioning: false,
@@ -279,11 +292,11 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     mountTitle(config);
     clearResult();
     if (config.onStart) config.onStart(active);
-    if (config.seconds) {
+    if (active.deadlineSeconds) {
       const run = active;
       active.timer = window.setInterval(() => {
         if (active !== run || run.paused || run.complete) return;
-        run.remaining = Math.max(0, Math.ceil(config.seconds - run.metrics.elapsedSeconds()));
+        updateRemaining(run);
         if (run.remaining <= 0) completeRunner();
         else updateUi();
       }, 100);
@@ -319,7 +332,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
   function beginItem() {
     if (!active || active.complete) return;
     if (active.index >= active.items.length) {
-      if (active.config.seconds && active.items.length) {
+      if (active.deadlineSeconds && active.items.length) {
         active.items.push(...(active.config.refillItems ? active.config.refillItems() : sample(active.config.pool || active.config.items, (active.config.pool || active.config.items).length)));
       } else {
         completeRunner();
@@ -431,8 +444,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       fingerSymbols: SaveManager.ensure().settings.fingerSymbols
     });
     if (progress) {
-      const dots = active.config.seconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
-      progress.textContent = active.config.seconds ? `${active.completedItems}問 おわった` : `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
+      const dots = active.deadlineSeconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
+      progress.textContent = active.deadlineSeconds ? `${active.completedItems}問 おわった` : `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
       if (active.config.presentation === "literature") progress.textContent = UI_TEXT.literature.part.replace("{title}", item.workTitle || active.config.title).replace("{index}", String((item.partIndex || 0) + 1)).replace("{total}", String(item.partTotal || active.items.length));
     }
     if (stats) {
@@ -440,7 +453,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       const parts = [`<span>気配:[${summary.currentRhythm}]</span>`, `<span>正確率:${acc}%</span>`];
       if (active.mode === "jissen") {
         parts.push(`<span>KPM:${Math.round(summary.kpm)}</span>`);
-        if (active.config.seconds) parts.push(`<span>残り:${active.remaining}秒</span>`);
+        if (active.deadlineSeconds) parts.push(`<span>残り:${active.remaining}秒</span>`);
       }
       if (comboEnabled() && active.comboDisplay >= 5) {
         parts.push(`<span class="combo-count ${active.comboFading ? "fading" : ""}">れんげき ${active.comboDisplay}</span>`);
@@ -458,9 +471,9 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     cleanupItemTimers();
     clearComboFx();
     const state = active;
-    const summary = state.metrics.summary(undefined, state.config.seconds || undefined);
+    const summary = state.metrics.summary(undefined, state.deadlineSeconds || undefined);
     state.finalSummary = summary;
-    if (state.config.seconds) state.remaining = 0;
+    if (state.deadlineSeconds) state.remaining = 0;
     checkpoint(false, false, summary);
     updateUi();
     if (state.config.onComplete) state.config.onComplete(summary, state);
@@ -480,35 +493,41 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
       : "";
     const resultData = state.resultData || {};
+    const showDeliveries = Number.isInteger(resultData.deliveryCount);
+    const accuracy = `${Math.round(summary.accuracy * 100)}%`;
     const grownPlant = state.gardenGrowth && GARDEN_DATA.plants.find((plant) => plant.id === state.gardenGrowth.id);
     const gardenMessage = grownPlant && UI_TEXT.garden.grew.replace("{plant}", grownPlant.label)
       .replace("{stage}", grownPlant.stages[state.gardenGrowth.stage]);
     const advice = state.config.screen === "S2" && state.config.advice !== false ? LearningManager.advice(summary, state.config.contentStageId || state.config.stageId) : null;
-    const speedHtml = isJissen
+    const speedHtml = isJissen && !showDeliveries
       ? `<div class="result-speed">
           ${Number.isFinite(resultData.score) ? `<div><span>スコア</span><strong>${resultData.score}</strong></div>` : ""}
           <div><span>KPM</span><strong>${Math.round(summary.kpm)}</strong></div>
           ${resultData.tier ? `<div class="tier-box ${tierClass(resultData.tier)}"><span>Tier</span><strong><span class="tier-badge">${SVG_ICONS.tierBadge()}</span>${escapeHtml(resultData.tier)}</strong></div>` : ""}
         </div>`
       : "";
-    const body = `<div class="result-modal ${resultData.challengeCode ? "result-courier" : ""}">
+    const detailHtml = resultData.detail ? `<p class="result-game-detail">${escapeHtml(resultData.detail)}</p>` : "";
+    const body = `<div class="result-modal ${state.config.presentation === "courier" || resultData.challengeCode ? "result-courier" : ""}${showDeliveries ? " result-lantern" : ""}">
         ${resultData.bestUpdated ? `<div class="result-best-ribbon">じこベスト！</div>` : ""}
         ${resultData.tier === "月光" ? `<div class="moon-bloom" aria-hidden="true"></div>` : ""}
         <div class="result-main-stat">
-          <span>正確率</span>
-          <strong>${Math.round(summary.accuracy * 100)}%</strong>
+          <span>${showDeliveries ? UI_TEXT.courier.delivered : "正確率"}</span>
+          <strong>${showDeliveries ? `${resultData.deliveryCount}本` : accuracy}</strong>
         </div>
         <div class="result-summary-grid">
+          ${showDeliveries ? `<div><span>正確率</span><strong>${accuracy}</strong></div>` : ""}
           <div><span>気配</span><strong>${escapeHtml(summary.rhythm)}</strong></div>
           <div><span>最大連撃</span><strong>${summary.maxCombo || 0}</strong></div>
           <div><span>正打</span><strong>${summary.correct}</strong></div>
           <div><span>ミス</span><strong>${summary.miss}</strong></div>
+          ${showDeliveries && isJissen ? `<div><span>KPM</span><strong>${Math.round(summary.kpm)}</strong></div>` : ""}
         </div>
+        ${showDeliveries ? detailHtml : ""}
         ${speedHtml}
         ${gardenMessage ? `<p class="result-garden">${escapeHtml(gardenMessage)}</p>` : ""}
         ${weakKeysHtml(summary)}
         ${growthHtml(summary, state.previousRecord)}
-        ${resultData.detail ? `<p class="result-game-detail">${escapeHtml(resultData.detail)}</p>` : ""}
+        ${showDeliveries ? "" : detailHtml}
         ${resultData.challengeCode ? `<label class="result-challenge">${UI_TEXT.shared.result}<input type="text" readonly value="${escapeHtml(resultData.challengeCode)}" aria-label="${UI_TEXT.shared.code}"></label>` : ""}
         ${advice ? `<div class="result-coach"><h3>${UI_TEXT.coach.title}</h3><p>${escapeHtml(advice.text)}</p></div>` : ""}
         ${parsed.rest ? `<div class="result-message">${parsed.rest}</div>` : ""}
@@ -517,7 +536,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     const actions = [
       {
         id: "again",
-        label: "もういちど",
+        label: state.config.retryLabel || "もういちど",
         primary: true,
         run() {
           const config = state.config;
@@ -794,6 +813,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
     cleanupComboTimer();
     cleanupItemTimers();
     clearComboFx();
+    ["trainingStats", "examStats"].forEach((id) => byId(id)?.replaceChildren());
     const courier = byId("courierMount");
     if (courier) { courier.innerHTML = ""; courier.hidden = true; }
     closeModal(false);
@@ -843,7 +863,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       correct: summary.correct, miss: summary.miss, acc: summary.accuracy, rhythm: summary.rhythm,
       maxCombo: summary.maxCombo, words: run.completedItems, keyStats: summary.keyStats,
       stageId: run.config.stageId, purpose: run.config.purpose || "practice", lessonId: run.config.lessonId || "",
-      literatureId: !aborted && !run.config.seconds && run.completedItems === run.items.length ? run.config.literatureId || "" : "",
+      literatureId: !aborted && !run.deadlineSeconds && run.completedItems === run.items.length ? run.config.literatureId || "" : "",
       readings: run.completedTexts.filter((text) => LearningManager.readingEntries().some((item) => item.kana === text)),
       delivered: run.config.presentation === "courier" ? run.completedItems : 0,
       ...(run.mode === "jissen" ? { kpm: summary.kpm } : {})

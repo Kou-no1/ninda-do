@@ -403,6 +403,13 @@ for (const course of RANK_DATA.banzuke.courses) {
   }
 }
 const game = context.GAME_DATA;
+const lantern = game.lantern;
+ok(typeof lantern?.label === "string" && lantern.label.trim().length > 0, "NG [courier:lantern] 便の名前がありません");
+// These limits also bound the full run to 42 seconds and the last light to six clean deliveries.
+for (const [key, limit] of Object.entries({ seconds: 30, cleanPerLight: 2, bonusSeconds: 4, maxLights: 3 })) {
+  const value = lantern?.[key];
+  ok(Number.isInteger(value) && value >= 1 && value <= limit, `NG [courier:lantern] ${key} は1〜${limit}の整数で指定してください`);
+}
 ok(Number.isInteger(game.guideLevel) && game.guideLevel >= 0 && game.guideLevel <= 3, "NG [courier] ガイドが不正です");
 ok(game.scoring.delivery > 0 && game.scoring.fastBonus >= 0 && game.travel.baseSeconds > 0 && game.travel.secondsPerKey > 0, "NG [courier] 点数・移動時間が不正です");
 ok(new Set(game.courses.map((course) => course.id)).size === game.courses.length, "NG [courier] 便のIDが重複しています");

@@ -349,6 +349,72 @@ test("courier unlocks, accuracy-weighted scoring and best updates are determinis
   assert.deepEqual(plain(s.ensure()), before);
 });
 
+test("lantern progress charges every second clean delivery and stops charging at three lights", () => {
+  assert.ok(scripts.includes("js/courier-lantern.js"), "lantern helper must load in the page and VM fixture");
+  const { context: c } = fixture();
+  assert.equal(c.GAME_DATA.lantern.seconds, 30); assert.equal(c.GAME_DATA.lantern.bonusSeconds, 4);
+  for (const [total, lights, charge] of [[0, 0, 0], [1, 0, 1], [2, 1, 0], [3, 1, 1], [4, 2, 0],
+    [5, 2, 1], [6, 3, 0], [7, 3, 0], [100, 3, 0]]) {
+    assert.deepEqual(plain(c.CourierLantern.progress(total)), { lights, charge }, `clean total ${total}`);
+  }
+});
+
+test("lantern progress uses the configured threshold and cap", () => {
+  const { context: c } = fixture();
+  Object.assign(c.GAME_DATA.lantern, { cleanPerLight: 3, maxLights: 2 });
+  for (const [total, lights, charge] of [[2, 0, 2], [3, 1, 0], [5, 1, 2], [6, 2, 0], [7, 2, 0], [9, 2, 0]]) {
+    assert.deepEqual(plain(c.CourierLantern.progress(total)), { lights, charge }, `clean total ${total}`);
+  }
+});
+
+test("lantern delivery bests improve independently on all three courses and survive full backup", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
+  const courses = c.GAME_DATA.courses; assert.equal(courses.length, 3);
+  const expected = {};
+  for (const [index, { id }] of courses.entries()) {
+    const first = index + 2; const best = first + 3;
+    assert.deepEqual(plain(s.updateLanternBest(id, 0)), { previous: 0, best: 0, updated: false });
+    assert.deepEqual(plain(s.updateLanternBest(id, first)), { previous: 0, best: first, updated: true });
+    assert.deepEqual(plain(s.updateLanternBest(id, best)), { previous: first, best, updated: true });
+    for (const delivered of [best, best - 1]) {
+      assert.deepEqual(plain(s.updateLanternBest(id, delivered)), { previous: best, best, updated: false });
+    }
+    expected[id] = best;
+  }
+  const backup = s.exportBackup(); assert.deepEqual(JSON.parse(backup).save.best.lanternCourier, expected);
+  s.reset(); s.restoreBackup(backup); assert.deepEqual(plain(s.load().best.lanternCourier), expected);
+});
+
+test("teacher lantern results report the saved best without writing or publishing progress", () => {
+  const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
+  const [a, b] = c.GAME_DATA.courses;
+  s.updateLanternBest(a.id, 4); s.setSetting("teacherMode", true);
+  const before = plain(s.load()); let writes = 0; let events = 0;
+  const setItem = c.localStorage.setItem;
+  c.localStorage.setItem = (key, value) => { writes += 1; setItem(key, value); };
+  s.setSyncAdapter({ onEvent: () => { events += 1; } });
+  assert.deepEqual(plain(s.updateLanternBest(a.id, 9)), { previous: 4, best: 4, updated: false });
+  assert.deepEqual(plain(s.updateLanternBest(b.id, 9)), { previous: 0, best: 0, updated: false });
+  assert.equal(writes, 0); assert.equal(events, 0); assert.deepEqual(plain(s.load()), before);
+});
+
+test("legacy courier saves gain only private delivery counts, leaving replays and codes unchanged", () => {
+  const { context: c, values } = fixture(); const s = c.SaveManager; const g = c.NinjaGameManager;
+  s.create("しのび", "kyu1");
+  const course = c.GAME_DATA.courses[0];
+  s.updateCourierBest(course.id, 100, 8);
+  assert.equal(s.saveCourierReplay(course.id, { v: 1, seed: 7, signature: g.signature(course), times: [1000], score: 100 }), true);
+  const legacy = plain(s.load()); delete legacy.best.lanternCourier;
+  values.set(s.STORAGE_KEY, JSON.stringify(legacy));
+  const expected = plain(legacy); expected.best.lanternCourier = {};
+  assert.deepEqual(plain(s.load()), expected);
+  const challenge = g.exportChallenge(course.id, 7); const recovery = s.exportCode();
+  let events = 0; s.setSyncAdapter({ onEvent: () => { events += 1; } });
+  s.updateLanternBest(course.id, 12); expected.best.lanternCourier[course.id] = 12;
+  assert.deepEqual(plain(s.load()), expected); assert.equal(events, 0);
+  assert.equal(g.exportChallenge(course.id, 7), challenge); assert.equal(s.exportCode(), recovery);
+});
+
 test("missions, reading and lesson completion persist only completed sessions and survive backup", () => {
   const { context: c } = fixture(); const s = c.SaveManager; s.create("しのび", "kyu1");
   const reading = c.LearningManager.readingEntries()[0].kana;

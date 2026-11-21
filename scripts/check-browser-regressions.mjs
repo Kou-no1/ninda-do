@@ -572,6 +572,166 @@ try {
     assert.equal(await evaluate("document.querySelector('[data-menu-card=ghost]').getAttribute('aria-disabled')"), "false");
   });
 
+  const lanternText = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).innerText.trim()`);
+  const courierWord = () => evaluate("InputEngine.preferredRomaji(document.querySelector('#promptKana .prompt-progress').textContent.replace(/\\s/g,''))");
+  const deliverWord = async () => { await keys(await courierWord()); await delay(170); };
+  const menuCard = id => clickVisible(`#menuModalMount [data-menu-card="${id}"]`);
+  async function openLantern(course) {
+    await clickVisible("#S1 #jissenButton");
+    await menuCard("courier");
+    await menuCard(course);
+    assert.match(await lanternText('[data-menu-card="lantern"]'), /灯つなぎ便/);
+    await menuCard("lantern");
+    assert.equal(await evaluate("document.querySelectorAll('#courierLantern .lantern-icon').length"), 3);
+  }
+
+  await test("lantern courier charges cumulative clean deliveries, enforces active deadlines and retries the same route", async () => {
+    await fresh("kyu1");
+    await evaluate("DAN_WORDS.words=__danPool.slice();SaveManager.update(s=>{s.dan='genin';});NinjaGameManager.start('sato-bin',{seed:42});__advance(1000);");
+    await deliverWord();
+    await evaluate("__advance(60000)");
+    const standard = () => evaluate("({best:SaveManager.ensure().best.courier,replays:SaveManager.ensure().game.replays,code:NinjaGameManager.exportChallenge('sato-bin',42)})");
+    const original = await standard();
+    assert.ok(original.best["sato-bin"].score > 0);
+    assert.deepEqual(original.replays["sato-bin"].times, [1000]);
+    await clickVisible("[data-modal-action=home]");
+    await openLantern("sato-bin");
+    const hud = () => evaluate(`({
+      deliveries:Number(document.querySelector('#courierDelivered').innerText.match(/\\d+/)[0]),
+      lit:document.querySelectorAll('#courierLantern .lantern-icon.is-lit').length,
+      seconds:Number(document.querySelector('#trainingStats').innerText.match(/残り:(\\d+)秒/)[1])
+    })`);
+    const checkHud = async (deliveries, lit, seconds) => assert.deepEqual(await hud(), { deliveries, lit, seconds });
+    const target = () => lanternText("#courierLantern .lantern-target");
+    const charge = () => lanternText("#courierLantern .lantern-progress");
+    const first = await courierWord();
+    await checkHud(0, 0, 30);
+    assert.match(await target(), /1本/);
+    await deliverWord();
+    await checkHud(1, 0, 30);
+    const half = await charge();
+    assert.match(half, /あと1本/);
+    const second = await courierWord();
+    await keys(second.slice(0, -1));
+    const typed = () => lanternText("#S2 .typed");
+    const prefix = await typed();
+    await keys(second.endsWith("q") ? "z" : "q");
+    assert.equal(await typed(), prefix);
+    assert.equal(await courierWord(), second);
+    await checkHud(1, 0, 30);
+    await keys(second.slice(-1)); await delay(170);
+    await checkHud(2, 0, 30);
+    assert.equal(await charge(), half, "A dirty delivery must preserve the previous clean word");
+
+    const third = await courierWord();
+    await keys(third.slice(0, -1));
+    await evaluate("document.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));__advance(60000);");
+    assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), false);
+    await keys(third.slice(-1));
+    assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
+    await checkHud(2, 0, 30);
+    await evaluate("__advance(29999)");
+    await checkHud(2, 0, 1);
+    // Cross the original deadline during the transition, before another prompt can appear.
+    await evaluate(`__key(${JSON.stringify(third.slice(-1))});__clock+=1;`);
+    await delay(170);
+    await evaluate("__advance(1000)");
+    await checkHud(3, 1, 3);
+    for (const [count, lights, seconds] of [[4,1,3], [5,2,7], [6,2,7], [7,3,11], [8,3,11], [9,3,11]]) {
+      await deliverWord();
+      await checkHud(count, lights, seconds);
+    }
+    await screenshot("courier-lantern-lit.png");
+    await evaluate("__advance(10999)");
+    await checkHud(9, 3, 1);
+    await evaluate("__advance(100)");
+    const primary = () => lanternText("#resultModalMount .result-main-stat strong");
+    const detail = () => lanternText("#resultModalMount .result-game-detail");
+    assert.equal(await primary(), "9本");
+    assert.match(await detail(), /つぎ[^。]*10本/);
+    assert.equal(await lanternText("[data-modal-action=again]"), "同じ道でもう一便");
+    await screenshot("courier-lantern-result.png");
+    await send("Emulation.setDeviceMetricsOverride", { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false });
+    await evaluate("SaveManager.setSetting('display','light');NindaApp.applyTheme();");
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth && document.querySelector('.result-dialog').scrollHeight <= document.querySelector('.result-dialog').clientHeight + 1"), true);
+    assert.equal(await evaluate("document.activeElement.dataset.modalAction"), "again");
+    await evaluate("__key('Enter')");
+    await checkHud(0, 0, 30);
+    assert.equal(await evaluate("document.querySelector('#promptKana').getBoundingClientRect().bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth"), true);
+    await screenshot("courier-lantern-light-1024.png");
+    await send("Emulation.setDeviceMetricsOverride", { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
+    await evaluate("SaveManager.setSetting('display','night');NindaApp.applyTheme();");
+    assert.match(await target(), /10本/);
+    assert.equal(await courierWord(), first);
+    await deliverWord();
+    assert.equal(await courierWord(), second);
+    await keys(second.slice(0, -1));
+    // At exactly 30s the last key cannot earn a rescue bonus, even before the next timer tick.
+    await evaluate(`__clock+=30000;__key(${JSON.stringify(second.slice(-1))});`);
+    assert.equal(await primary(), "1本");
+    assert.match(await detail(), /つぎ[^。]*10本/);
+    assert.equal(await evaluate("SaveManager.ensure().best.lanternCourier['sato-bin']"), 9);
+    assert.deepEqual(await standard(), original);
+    await clickVisible("[data-modal-action=home]");
+  });
+
+  await test("courier expiry consumes Enter and records the accepted final-key timestamp", async () => {
+    await fresh("kyu1");
+    await evaluate("DAN_WORDS.words=__danPool.slice();SaveManager.update(s=>{s.dan='genin';});NinjaGameManager.start('sato-bin',{seed:42});");
+    const word = await courierWord();
+    await keys(word.slice(0, -1));
+    await evaluate("__advance(59999)");
+    // Make the synchronous guide repaint cross the deadline after the last key was accepted.
+    assert.equal(await evaluate(`(()=>{const get=document.getElementById;let advanced=false;
+      document.getElementById=function(id){if(id==='trainingStats' && !advanced){__clock+=4;advanced=true;}return get.call(this,id);};
+      try{__key(${JSON.stringify(word.slice(-1))});}finally{document.getElementById=get;}return advanced;})()`), true);
+    await evaluate("__advance(200)");
+    assert.deepEqual(await evaluate("SaveManager.ensure().game.replays['sato-bin'].times"), [59999]);
+    await clickVisible("[data-modal-action=home]");
+    await evaluate("NinjaGameManager.start('sato-bin',{variant:'lantern',seed:42});__advance(30000);");
+    await clickVisible("[data-modal-action=again]");
+    await evaluate("__clock+=30000;__key('Enter');");
+    assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+    assert.equal(await lanternText("#resultModalMount .result-main-stat strong"), "0本");
+    await clickVisible("[data-modal-action=home]");
+    assert.equal(await lanternText("#trainingStats"), "");
+  });
+
+  await test("lantern courier respects kyu and dan gates, separates course bests and never saves teacher progress", async () => {
+    await fresh("kyu5");
+    await evaluate("DAN_WORDS.words=__danPool.slice();NindaApp.showScreen('S1');");
+    assert.equal(await evaluate("document.getElementById('jissenButton').hidden"), true);
+    await evaluate("NinjaGameManager.openRunMenu('sato-bin');NinjaGameManager.start('sato-bin',{variant:'lantern',seed:7});");
+    assert.equal(await evaluate("TrainingManager.isActive() || !document.getElementById('menuOverlay').hidden"), false);
+    const bests = {};
+    for (const [dan, course, count, locked] of [["genin","sato-bin",1,"yama-bin"], ["chunin","yama-bin",2,"tsuki-bin"], ["jonin","tsuki-bin",3,null]]) {
+      await evaluate(`SaveManager.update(s=>{s.dan=${JSON.stringify(dan)};});NindaApp.showScreen('S1');`);
+      if (locked) {
+        await clickVisible("#S1 #jissenButton");
+        await menuCard("courier");
+        assert.equal(await evaluate(`document.querySelector('[data-menu-card="${locked}"]').getAttribute('aria-disabled')`), "true");
+        await evaluate(`NindaApp.closeMenuModal(false);NinjaGameManager.start('${locked}',{variant:'lantern'});`);
+        assert.equal(await evaluate("TrainingManager.isActive()"), false);
+      }
+      await openLantern(course);
+      assert.match(await lanternText(".lantern-target"), /1本/);
+      for (let i = 0; i < count; i++) await deliverWord();
+      await evaluate("__advance(42000)");
+      bests[course] = count;
+      assert.deepEqual(await evaluate("SaveManager.ensure().best.lanternCourier"), bests);
+      await clickVisible("[data-modal-action=home]");
+    }
+    await fresh("kyu5");
+    await evaluate("SaveManager.setSetting('teacherMode',true);NindaApp.showScreen('S1');");
+    const before = await evaluate("SaveManager.ensure()");
+    await openLantern("tsuki-bin");
+    await deliverWord(); await deliverWord();
+    await evaluate("__advance(34000)");
+    assert.equal(await lanternText("#resultModalMount .result-main-stat strong"), "2本");
+    await clickVisible("[data-modal-action=home]");
+    assert.deepEqual(await evaluate("SaveManager.ensure()"), before);
+  });
+
   await test("shared lesson codes work by keyboard, reject corruption and respect dan locks", async () => {
     await fresh("kyu5"); await evaluate("LearningManager.open('shared');");
     assert.equal(await evaluate("document.querySelector('#learningMount input')===null"), true);
@@ -828,7 +988,7 @@ try {
     assert.ok(await evaluate("[...document.querySelectorAll('.library-work small')].some(el=>el.textContent.includes('うちきった'))"));
     await screenshot("literature-misuzu-library.png");
     await evaluate("NindaApp.showScreen('S6');");
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.13.0')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.14.0')"), true);
   });
 
   await test("advanced library and long excerpts fit both themes and widths; grade return has no speed DOM", async () => {

@@ -154,9 +154,14 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
     const save = SaveManager.ensure();
     if (!course || !unlocked(course, save)) return;
     const replay = save.game.replays[id];
+    const rules = GAME_DATA.lantern;
+    const lanternBest = SaveManager.isTeacherMode(save) ? 0 : save.best.lanternCourier[id] || 0;
     NindaApp.openMenuModal({ title: `${GAME_DATA.label} ／ ${course.label}`, teacherBadge: SaveManager.isTeacherMode(),
       cards: [
         { id: "new", name: UI_TEXT.courier.newRun, desc: UI_TEXT.courier.newDesc, meta: `${course.seconds}${UI_TEXT.courier.seconds}`, run() { start(id); } },
+        { id: "lantern", name: rules.label, desc: UI_TEXT.lantern.desc.replace("{count}", rules.cleanPerLight).replace("{seconds}", rules.bonusSeconds),
+          meta: `${rules.seconds}${UI_TEXT.courier.seconds} ／ ${lanternBest ? UI_TEXT.lantern.best.replace("{count}", lanternBest) : UI_TEXT.lantern.first}`,
+          run() { start(id, { variant: "lantern" }); } },
         { id: "ghost", name: UI_TEXT.courier.ghostRun, desc: UI_TEXT.courier.ghostDesc, locked: !replay,
           meta: replay ? `${UI_TEXT.courier.delivered} ${replay.times.length} ／ ${UI_TEXT.courier.points} ${replay.score}` : UI_TEXT.courier.noGhost,
           run() { start(id, { seed: replay.seed }); } },
@@ -166,24 +171,29 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
 
   function start(id, options) {
     const course = GAME_DATA.courses.find((item) => item.id === id);
-    if (!course || !unlocked(course, SaveManager.ensure())) return;
+    const save = SaveManager.ensure();
+    if (!course || !unlocked(course, save)) return;
     const words = pool(course);
     if (!words.length) return;
     const seed = options && options.seed !== undefined ? options.seed : randomSeed();
     if (!validSeed(seed)) return;
     const nextBatch = sequence(course, seed);
-    const previous = SaveManager.ensure().game.replays[id];
+    const lantern = options?.variant === "lantern";
+    const previous = !lantern && save.game.replays[id];
+    const teacher = SaveManager.isTeacherMode(save);
+    let lanternBest = teacher ? options?.demoBest || 0 : save.best.lanternCourier[id] || 0;
     const ghost = previous && previous.seed === seed && validReplay(previous, course) ? previous : null;
     const ghostWords = [];
     if (ghost) { const nextGhost = sequence(course, seed); while (ghostWords.length <= ghost.times.length) ghostWords.push(...nextGhost()); }
     ExamManager.cancel(); NindaApp.closeMenuModal(false); NindaApp.showScreen("S2");
-    TrainingManager.startRunner({ screen: "S2", stageId: "jissen", recordId: `courier:${id}`, title: `${GAME_DATA.label} ／ ${course.label}`,
-      mode: "jissen", purpose: "courier", presentation: "courier", guideLevel: GAME_DATA.guideLevel, seconds: course.seconds,
+    TrainingManager.startRunner({ screen: "S2", stageId: "jissen", recordId: `${lantern ? "lantern" : "courier"}:${id}`, title: `${lantern ? GAME_DATA.lantern.label : GAME_DATA.label} ／ ${course.label}`,
+      mode: "jissen", purpose: "courier", presentation: "courier", guideLevel: GAME_DATA.guideLevel, seconds: lantern ? GAME_DATA.lantern.seconds : course.seconds,
       items: nextBatch(), refillItems: nextBatch, pool: words,
       onStart(state) {
         state.courier = { points: 0, fast: 0, itemStart: 0, window: 0, lastDelivery: -100, seed, ghost,
           times: [], clean: 0, shortcut: false, itemMiss: 0, destinations: new Set(), route: routeFor(0, false), ghostWords };
-        mountScene(SaveManager.ensure());
+        if (lantern) state.courier.lantern = { cleanTotal: 0, target: lanternBest + 1, lastLit: -Infinity };
+        mountScene(save, lantern);
       },
       onItemStart(item, state) {
         state.courier.itemStart = state.metrics.elapsedSeconds();
@@ -191,20 +201,48 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
         state.courier.itemMiss = state.metrics.summary().miss;
         state.courier.route = routeFor(state.completedItems, state.courier.shortcut);
       },
-      onItemComplete(item, state) {
-        const remaining = Math.max(0, 1 - (state.metrics.elapsedSeconds() - state.courier.itemStart) / state.courier.window);
+      onItemComplete(item, state, acceptedAt) {
+        const remaining = Math.max(0, 1 - (acceptedAt - state.courier.itemStart) / state.courier.window);
         state.courier.points += GAME_DATA.scoring.delivery + Math.round(GAME_DATA.scoring.fastBonus * remaining);
         if (remaining > 0) state.courier.fast += 1;
-        state.courier.lastDelivery = state.metrics.elapsedSeconds();
-        state.courier.times.push(Math.round(state.courier.lastDelivery * 1000));
+        state.courier.lastDelivery = acceptedAt;
+        state.courier.times.push(Math.round(acceptedAt * 1000));
         const summary = state.metrics.summary();
-        state.courier.clean = summary.miss === state.courier.itemMiss ? state.courier.clean + 1 : 0;
+        const cleanDelivery = summary.miss === state.courier.itemMiss;
+        state.courier.clean = cleanDelivery ? state.courier.clean + 1 : 0;
+        let litNow = false;
+        if (lantern && cleanDelivery) {
+          const lamp = state.courier.lantern;
+          const before = CourierLantern.progress(lamp.cleanTotal).lights;
+          lamp.cleanTotal += 1;
+          if (CourierLantern.progress(lamp.cleanTotal).lights > before) {
+            state.deadlineSeconds += GAME_DATA.lantern.bonusSeconds;
+            lamp.lastLit = acceptedAt;
+            litNow = true;
+          }
+        }
         if (opensShortcut(state.courier.clean, summary)) state.courier.shortcut = true;
         state.courier.destinations.add(state.courier.route.id);
-        if (AudioManager.shuriken) AudioManager.shuriken();
+        if (litNow) AudioManager.lantern();
+        else AudioManager.shuriken();
       },
       onUpdate: updateScene,
       onComplete(summary, state) {
+        if (lantern) {
+          const delivered = state.completedItems;
+          const best = SaveManager.updateLanternBest(id, delivered);
+          lanternBest = teacher ? Math.max(lanternBest, delivered) : best.best;
+          const target = lanternBest + 1;
+          const lit = CourierLantern.progress(state.courier.lantern.cleanTotal).lights;
+          const next = (teacher ? UI_TEXT.lantern.demo : UI_TEXT.lantern.next)
+            .replace("{target}", target).replace("{gap}", target - delivered);
+          state.resultData = { deliveryCount: delivered, bestUpdated: best.updated, detail: [
+            UI_TEXT.lantern.lights.replace("{lit}", lit).replace("{max}", GAME_DATA.lantern.maxLights),
+            next
+          ].join(" ／ ") };
+          AchievementManager.checkSession(summary);
+          return;
+        }
         const total = score(state.courier.points, summary.accuracy);
         const best = SaveManager.updateCourierBest(id, total, state.completedItems);
         SaveManager.saveCourierReplay(id, { v: GAME_DATA.replay.version, seed, signature: signature(course),
@@ -214,7 +252,9 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
           detail: `${UI_TEXT.courier.delivered} ${state.completedItems} ／ ${UI_TEXT.courier.fast} ${state.courier.fast} ／ ${UI_TEXT.courier.points} ${state.courier.points} × ${Math.round(summary.accuracy * 100)}% ／ ${UI_TEXT.courier.routeCount} ${state.courier.destinations.size}${state.courier.shortcut ? ` ／ ${UI_TEXT.courier.shortcut}` : ""}` };
         AchievementManager.checkSession(summary);
       },
-      retry() { start(id, { seed }); },
+      retryLabel: lantern ? UI_TEXT.lantern.retry : undefined,
+      renderResult: lantern ? () => `<h2>${esc(UI_TEXT.lantern.result)}</h2>` : undefined,
+      retry() { start(id, lantern ? { seed, variant: "lantern", demoBest: lanternBest } : { seed }); },
       resultContextAction: { id: "course", label: UI_TEXT.courier.choose, run() { TrainingManager.stop(false); NindaApp.showScreen("S1"); openCourses(); } } });
   }
 
@@ -239,11 +279,12 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
     </g>`;
   }
 
-  function mountScene(save) {
+  function mountScene(save, lantern) {
     const mount = document.getElementById("courierMount");
     mount.hidden = false;
     const outfit = SaveManager.isTeacherMode(save) && teacherOutfit ? teacherOutfit : save.game.equipped;
-    mount.innerHTML = `<div class="courier-hud"><strong id="courierScore"></strong><span id="courierDelivered"></span><span id="courierStatus" role="status"></span></div>
+    mount.dataset.variant = lantern ? "lantern" : "standard";
+    mount.innerHTML = `<div class="courier-hud"><strong id="courierScore"${lantern ? " hidden" : ""}></strong><span id="courierDelivered"></span><span id="courierStatus" role="status"></span></div>
       <div class="courier-route-bar"><strong id="courierRoute"></strong><span id="courierDestination"></span><span id="courierGhostCount"></span><span id="courierShortcut" role="status"></span></div>
       <svg class="courier-scene" viewBox="0 0 1080 210" role="img" aria-label="${UI_TEXT.courier.scene}">
         <circle class="courier-moon" cx="824" cy="45" r="24"/>
@@ -259,7 +300,8 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
         <g id="courierRunner" transform="translate(26 113)">${avatar(outfit)}</g>
         <g id="courierPile" transform="translate(1016 156)"></g>
         <g id="courierDeliveryGlow" class="courier-delivery-glow"><path d="M930 80v-10m-22 19-8-8m52 8 8-8"/></g>
-      </svg><div class="courier-travel"><span id="courierTravel"></span></div><div id="courierJourney" class="courier-journey"></div>`;
+      </svg><div class="courier-travel"><span id="courierTravel"></span></div>${lantern
+        ? `<div id="courierLantern">${CourierLantern.markup()}</div>` : '<div id="courierJourney" class="courier-journey"></div>'}`;
   }
 
   function updateScene(summary, state) {
@@ -267,7 +309,7 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
     if (!mount || mount.hidden || !state.courier) return;
     const elapsed = state.metrics.elapsedSeconds();
     const fraction = Math.min(1, Math.max(0, (elapsed - state.courier.itemStart) / state.courier.window));
-    const reduce = SaveManager.ensure().settings.reduceMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = document.body.dataset.reduceMotion === "true" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const route = state.courier.route;
     mount.dataset.route = route.id;
     mount.dataset.shortcut = String(state.courier.shortcut);
@@ -277,10 +319,14 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
     const shortcut = document.getElementById("courierShortcut");
     if (state.courier.shortcut && shortcut.textContent !== UI_TEXT.courier.shortcut) shortcut.textContent = UI_TEXT.courier.shortcut;
     document.getElementById("courierRunner").setAttribute("transform", `translate(${reduce ? 520 : Math.round(26 + fraction * 850)} 113)`);
-    document.getElementById("courierTravel").style.width = `${Math.round((1 - fraction) * 100)}%`;
-    document.getElementById("courierScore").textContent = `${UI_TEXT.courier.points} ${score(state.courier.points, summary.accuracy)}`;
+    const timeLeft = state.courier.lantern ? Math.max(0, 1 - elapsed / state.deadlineSeconds) : 1 - fraction;
+    document.getElementById("courierTravel").style.width = `${Math.round(timeLeft * 100)}%`;
+    if (!state.courier.lantern) document.getElementById("courierScore").textContent = `${UI_TEXT.courier.points} ${score(state.courier.points, summary.accuracy)}`;
     document.getElementById("courierDelivered").textContent = `${UI_TEXT.courier.delivered} ${state.completedItems}`;
-    const status = state.complete ? UI_TEXT.courier.arrived : fraction >= 1 ? UI_TEXT.courier.waiting : UI_TEXT.courier.onWay;
+    const justLit = state.courier.lantern && elapsed - state.courier.lantern.lastLit < 1.2;
+    const status = state.complete ? UI_TEXT.courier.arrived
+      : justLit ? UI_TEXT.lantern.justLit.replace("{seconds}", GAME_DATA.lantern.bonusSeconds)
+      : fraction >= 1 ? UI_TEXT.courier.waiting : UI_TEXT.courier.onWay;
     const statusElement = document.getElementById("courierStatus");
     if (statusElement.textContent !== status) statusElement.textContent = status;
     if (state.courier.ghost) {
@@ -295,6 +341,11 @@ const NinjaGameManager = globalThis.NinjaGameManager = (function () {
     if (pile.dataset.count !== String(state.completedItems)) {
       pile.dataset.count = String(state.completedItems);
       pile.innerHTML = Array.from({ length: Math.min(state.completedItems, 12) }, (_, i) => `<rect x="${i % 3 * 16}" y="${-Math.floor(i / 3) * 13}" width="13" height="10" rx="2"/>`).join("");
+    }
+    if (state.courier.lantern) {
+      const { cleanTotal, target } = state.courier.lantern;
+      CourierLantern.update(document.getElementById("courierLantern"), cleanTotal, state.completedItems, target);
+      return;
     }
     const journey = document.getElementById("courierJourney");
     if (journey.dataset.count !== String(state.courier.destinations.size)) {

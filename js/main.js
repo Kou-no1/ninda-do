@@ -1,4 +1,4 @@
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.14.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -9,6 +9,17 @@ const UI_TEXT = globalThis.UI_TEXT = {
   keyboardOnly: "このアプリはキーボードをつないであそんでね",
   menuTraining: "<ruby>修行<rt>しゅぎょう</rt></ruby>",
   menuExam: "<ruby>試<rt>ため</rt></ruby>し",
+  lantern: {
+    desc: "ひつなぎびん。ミスなしで{count}本とどけると、ちょうちんがともって{seconds}びょうのびるよ。",
+    best: "じこベスト {count}本", first: "まずは1本とどけよう",
+    retry: "同じ道でもう一便", result: "灯つなぎ便のきろく",
+    lights: "ちょうちん {lit}／{max}こ",
+    hudNext: "あかり {lights}こ ／ ミスなし あと{remaining}本で＋{bonus}びょう",
+    hudFull: "ぜんぶともった！ 合計＋{total}びょう",
+    justLit: "あかりがともった！ ＋{seconds}びょう",
+    hudTarget: "目ひょう {target}本", hudReached: "目ひょうクリア！ いま{deliveries}本",
+    next: "つぎは{target}本。あと{gap}本でじこベスト！", demo: "つぎの目ひょうは{target}本"
+  },
   garden: {
     title: "里のにわ", choose: "そだてるものをえらぶ", selected: "おせわ中", complete: "そだちきったよ",
     hint: "入門や級の修行、ことばや文の実戦をおえると、えらんだ草木がひとつそだつよ。",

@@ -46,7 +46,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       garden: { selected: "", growth: {} },
       examAttempts: {},
       weakTargets: [],
-      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {}, courier: {} },
+      best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {}, courier: {}, lanternCourier: {} },
       streak: { last: "", days: 0 },
       settings: { se: true, voice: true, display: "night", teacherMode: false, kanjiDisplay: true, textSize: "normal", lineSpacing: "normal", fingerSymbols: false, reduceMotion: false },
       eventLog: []
@@ -147,6 +147,10 @@ const SaveManager = globalThis.SaveManager = (function () {
     merged.best.courier = Object.fromEntries(Object.entries(save.best && save.best.courier || {}).filter(([id, record]) =>
       GAME_DATA.courses.some((course) => course.id === id) && record && Number.isFinite(record.score) && record.score >= 0
       && Number.isInteger(record.words) && record.words >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(record.date || "")));
+    const lantern = merged.best.lanternCourier;
+    merged.best.lanternCourier = lantern && typeof lantern === "object" && !Array.isArray(lantern)
+      ? Object.fromEntries(Object.entries(lantern).filter(([id, delivered]) => isCourierCourse(id) && isDeliveryBest(delivered)))
+      : {};
     merged.streak = { last: /^\d{4}-\d{2}-\d{2}$/.test(merged.streak.last || "") ? merged.streak.last : "", days: number(merged.streak.days) };
     merged.keyStats = Object.fromEntries(Object.entries(merged.keyStats).filter(([key, stat]) => FINGER_DATA.keys[key] && stat && typeof stat === "object")
       .map(([key, stat]) => [key, { attempts: number(stat.attempts), misses: Math.min(number(stat.misses), number(stat.attempts)), sumLatency: number(stat.sumLatency), recent: Array.isArray(stat.recent) ? stat.recent.filter((hit) => typeof hit === "boolean").slice(-20) : [] }]));
@@ -573,6 +577,27 @@ const SaveManager = globalThis.SaveManager = (function () {
     return { updated: true, best: saved.best.courier[courseId] };
   }
 
+  function isCourierCourse(id) {
+    return GAME_DATA.courses.some((course) => course.id === id);
+  }
+
+  function isDeliveryBest(delivered) {
+    return Number.isSafeInteger(delivered) && delivered > 0;
+  }
+
+  function updateLanternBest(id, delivered) {
+    if (!isCourierCourse(id)) return { previous: 0, best: 0, updated: false };
+    const current = load();
+    const previous = current ? current.best.lanternCourier[id] || 0 : 0;
+    if (!isDeliveryBest(delivered) || delivered <= previous || (current && isTeacherMode(current))) {
+      return { previous, best: previous, updated: false };
+    }
+    const data = current || ensure();
+    data.best.lanternCourier[id] = delivered;
+    const best = save(data).best.lanternCourier[id] || 0;
+    return { previous, best, updated: best > previous };
+  }
+
   function saveCourierReplay(courseId, replay) {
     const course = GAME_DATA.courses.find((item) => item.id === courseId);
     if (!course || !NinjaGameManager.validReplay(replay, course)) return false;
@@ -616,7 +641,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     restoreCode,
     reset,
     setSyncAdapter,
-    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked, updateCourierBest, saveCourierReplay, equipOutfit, day: todayJst,
+    flush, exportBackup, parseBackup, restoreBackup, stageUnlocked, updateCourierBest, updateLanternBest, saveCourierReplay, equipOutfit, day: todayJst,
     storageStatus: () => ({ persistent: !memoryOnly, warning: storageWarning })
   };
 })();

@@ -44,6 +44,10 @@ const AudioManager = globalThis.AudioManager = (function () {
   }
 
   function correct() { tone(740, 0.06, "triangle", 0.025); }
+  function lantern() {
+    tone(659, 0.10, "sine", 0.022);
+    tone(988, 0.15, "sine", 0.018, 0.09);
+  }
   function miss() { tone(150, 0.12, "square", 0.018); }
   function shuriken() {
     if (!enabled("se") || !ctx) return;
@@ -82,5 +86,5 @@ const AudioManager = globalThis.AudioManager = (function () {
 
   function cancelSpeech() { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); }
 
-  return { init, correct, miss, shuriken, pass, rankUp, speak, cancelSpeech };
+  return { init, correct, miss, shuriken, lantern, pass, rankUp, speak, cancelSpeech };
 })();
