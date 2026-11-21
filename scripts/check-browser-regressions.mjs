@@ -54,11 +54,19 @@ try {
     return result.result.value;
   };
   async function ready(name = "SaveManager") {
-    for (let i = 0; i < 100; i += 1) {
-      if (await evaluate(`typeof ${name} !== 'undefined' && document.readyState === 'complete'`)) return;
-      await delay(50);
-    }
-    throw new Error("Page readiness timeout");
+    const deadline = Date.now() + 20000;
+    let state, probeError;
+    do {
+      try {
+        state = await evaluate(`({ url: location.href, readyState: document.readyState, type: typeof ${name} })`);
+        if (state.readyState === "complete" && state.type !== "undefined") return;
+      } catch (error) {
+        probeError = error.message;
+      }
+      await delay(100);
+    } while (Date.now() < deadline);
+    const runtimeErrors = errors.slice(-5).map(e => e.exception?.description || e.text);
+    throw new Error(`Page readiness timeout waiting for ${name}: ${JSON.stringify({ ...state, probeError, runtimeErrors })}`);
   }
   async function test(name, fn) { if (testFilter && !testFilter.test(name)) return; await fn(); count += 1; console.log(`OK ${name}`); }
   async function screenshot(name) {
@@ -66,20 +74,136 @@ try {
     fs.writeFileSync(path.join(output, name), Buffer.from(shot.data, "base64"));
   }
   async function keys(text) { await evaluate(`for (const key of ${JSON.stringify(text)}) __key(key);`); }
+  async function clickVisible(selector) {
+    assert.ok(await evaluate(`(() => {
+      const button = document.querySelector(${JSON.stringify(selector)});
+      if (!button?.getClientRects().length || button.disabled || button.getAttribute('aria-disabled') === 'true') return false;
+      button.click(); return true;
+    })()`), `Expected an available control: ${selector}`);
+  }
   async function fresh(stage = "kyu9") {
     await evaluate(`TrainingManager.stop(false); NindaApp.closeMenuModal(false); SaveManager.setSetting('teacherMode',false); SaveManager.create('てすと',${JSON.stringify(stage)}); SaveManager.setSetting('se',false); SaveManager.setSetting('voice',false);`);
   }
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: 1366, height: 768, deviceScaleFactor: 1, mobile: false });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__clock=0; window.__timers=new Map(); let id=0; Object.defineProperty(performance,'now',{value:()=>__clock}); window.setInterval=(fn,ms)=>{__timers.set(++id,{fn,ms,last:__clock});return id;};window.clearInterval=id=>__timers.delete(id);window.__advance=ms=>{__clock+=ms;for(const[id,t]of[...__timers])if(__timers.has(id)&&__clock-t.last>=t.ms){t.last=__clock;t.fn();}};window.__key=key=>document.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));` });
+  await send("Page.addScriptToEvaluateOnNewDocument", { source: `document.addEventListener("DOMContentLoaded", () => {
+    if (typeof DAN_WORDS !== "undefined") window.__danPool = DAN_WORDS.words.slice();
+  }, { once: true });` });
   await send("Page.navigate", { url: pathToFileURL(path.join(root, "index.html")).href }); await ready();
-  await evaluate("window.__danPool=DAN_WORDS.words.slice();");
 
   await test("file startup and IME name-entry isolation", async () => {
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     await evaluate("document.getElementById('ninjaName').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));");
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     assert.equal(errors.length, 0);
+  });
+
+  await test("garden entry, grade practice, reload and read-only teacher preview stay free of speed", async () => {
+    const plant = id => `#S8 #gardenMount [data-garden-plant=${id}]`;
+    const garden = () => evaluate("SaveManager.ensure().garden");
+    const noSpeed = async selector => {
+      const text = await evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`);
+      assert.doesNotMatch(text, /KPM|打\s*\/\s*分/i);
+      assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector + " .result-speed")}) === null`), true);
+    };
+    const finishGrade = async () => {
+      await clickVisible("#gardenPractice");
+      await clickVisible("#menuModalMount [data-menu-card=training-0]");
+      assert.equal(await evaluate("NindaApp.currentScreen()"), "S2");
+      await noSpeed("#trainingStats");
+      for (let i = 0; i < 40 && await evaluate("TrainingManager.isActive()"); i += 1) {
+        const prompt = await evaluate("document.getElementById('promptKana').textContent");
+        assert.match(prompt, /^[fj\s]+$/);
+        await keys(prompt.replace(/\s/g, "")); await delay(140);
+      }
+      assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+      await noSpeed("#resultModalMount");
+    };
+
+    await clickVisible("#S0 #startKyu10");
+    await clickVisible("#S1 button#openGarden");
+    assert.equal((await garden()).selected, "");
+    assert.equal(await evaluate("document.querySelector('#gardenPractice').disabled"), true);
+    await clickVisible(plant("asagao"));
+    assert.equal((await garden()).selected, "asagao");
+    assert.equal((await garden()).growth.asagao, 0);
+    await noSpeed("#S8");
+    await finishGrade();
+    const { label, stages } = await evaluate("GARDEN_DATA.plants.find(p => p.id === 'asagao')");
+    const feedback = await evaluate("document.querySelector('#resultModalMount .result-garden').innerText");
+    assert.ok(feedback.includes(label) && feedback.includes(stages[1]), feedback);
+    assert.equal((await garden()).growth.asagao, 1);
+
+    await send("Page.reload"); await delay(150); await ready();
+    await clickVisible("#S1 button#openGarden");
+    const saved = await garden();
+    assert.equal(saved.selected, "asagao");
+    assert.equal(saved.growth.asagao, 1);
+    assert.ok(await evaluate(`document.querySelector('${plant("asagao")}').innerText.includes(${JSON.stringify(stages[1])})`));
+    await clickVisible("#gardenBack");
+    assert.equal(await evaluate("NindaApp.currentScreen()"), "S1");
+
+    await evaluate("SaveManager.setSetting('teacherMode',true)");
+    const before = await evaluate("SaveManager.ensure()");
+    await clickVisible("#S1 button#openGarden");
+    await clickVisible(plant("take"));
+    assert.equal(await evaluate(`document.querySelector('${plant("take")}').getAttribute('aria-pressed')`), "true");
+    await clickVisible(plant("asagao"));
+    assert.ok(await evaluate(`document.querySelector('${plant("asagao")}').innerText.includes(${JSON.stringify(stages.at(-1))})`));
+    await screenshot("garden-mature.png");
+    assert.deepEqual(await evaluate("SaveManager.ensure()"), before);
+    await finishGrade();
+    assert.equal(await evaluate("document.querySelector('#resultModalMount .result-garden') === null"), true);
+    assert.deepEqual(await evaluate("SaveManager.ensure()"), before);
+    await clickVisible("[data-modal-action=home]");
+  });
+
+  await test("garden dan practice grows once on a partial-word timeout, never on idle timeout or abort", async () => {
+    await fresh("kyu1");
+    await evaluate("SaveManager.update(s=>{s.dan='genin';});NindaApp.showScreen('S1');");
+    await clickVisible("#S1 button#openGarden");
+    await clickVisible("#gardenMount [data-garden-plant=asagao]");
+    await clickVisible("#gardenPractice");
+    await clickVisible("#menuModalMount [data-menu-card=word-jissen]");
+    const growth = () => evaluate("SaveManager.ensure().garden.growth.asagao");
+    const timeout = async () => {
+      await evaluate("__advance(60000)");
+      assert.equal(await evaluate("document.getElementById('resultOverlay').hidden"), false);
+    };
+    const firstKey = async () => {
+      const prompt = await evaluate("InputEngine.preferredRomaji(document.getElementById('promptKana').textContent.replace(/\\s/g,''))");
+      assert.ok(prompt.length > 1, `Expected a multi-key word: ${prompt}`);
+      await keys(prompt[0]);
+    };
+
+    await timeout();
+    assert.equal(await growth(), 0);
+    assert.equal(await evaluate("document.querySelector('#resultModalMount .result-garden') === null"), true);
+    await clickVisible("[data-modal-action=again]");
+    await firstKey();
+    const confirmed = await evaluate(`(() => {
+      const original = window.confirm;
+      let asked = false;
+      window.confirm = () => { asked = true; return true; };
+      try { __key('Escape'); return asked; } finally { window.confirm = original; }
+    })()`);
+    assert.equal(confirmed, true, "Escape should ask before aborting active practice");
+    assert.equal(await evaluate("NindaApp.currentScreen()"), "S1");
+    assert.equal(await growth(), 0);
+
+    await clickVisible("#S1 button#openGarden");
+    await clickVisible("#gardenPractice");
+    await clickVisible("#menuModalMount [data-menu-card=word-jissen]");
+    const before = await evaluate("SaveManager.ensure().totals");
+    await firstKey();
+    await timeout();
+    const after = await evaluate("SaveManager.ensure().totals");
+    assert.equal(after.correct, before.correct + 1);
+    assert.equal(after.words, before.words);
+    assert.equal(await growth(), 1);
+    assert.ok(await evaluate("document.querySelector('#resultModalMount .result-garden')?.innerText.trim()"));
+    await clickVisible("[data-modal-action=home]");
   });
 
   await test("theme switch updates inherited body text, not only explicit variable users", async () => {
@@ -185,7 +309,7 @@ try {
 
   await test("dan retry restarts kata, logs actual stats, aborted transition cannot restart", async () => {
     await fresh("kyu1");
-    await evaluate(`window.__danPool=DAN_WORDS.words.slice();SaveManager.update(s=>{s.dan='genin';});SaveManager.markPracticed('genin'); DAN_WORDS.words=['あ']; DAN_SENTENCES.sentences=['あ。'];const exam=RANK_DATA.dans.find(x=>x.id==='chunin').exam;exam.kata.items=1;exam.jissen.seconds=60;exam.jissen.kpm=0;exam.shingan.items=1;ExamManager.startDanExam('chunin');__key('a');`);
+    await evaluate(`SaveManager.update(s=>{s.dan='genin';});SaveManager.markPracticed('genin'); DAN_WORDS.words=['あ']; DAN_SENTENCES.sentences=['あ。'];const exam=RANK_DATA.dans.find(x=>x.id==='chunin').exam;exam.kata.items=1;exam.jissen.seconds=60;exam.jissen.kpm=0;exam.shingan.items=1;ExamManager.startDanExam('chunin');__key('a');`);
     await delay(1100);
     assert.ok(await evaluate("document.getElementById('examPhase').textContent.includes('実戦')"));
     await keys("a."); await delay(180); await evaluate("__advance(60000)"); await delay(950);
@@ -704,7 +828,7 @@ try {
     assert.ok(await evaluate("[...document.querySelectorAll('.library-work small')].some(el=>el.textContent.includes('うちきった'))"));
     await screenshot("literature-misuzu-library.png");
     await evaluate("NindaApp.showScreen('S6');");
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.includes('v1.12.1')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.13.0')"), true);
   });
 
   await test("advanced library and long excerpts fit both themes and widths; grade return has no speed DOM", async () => {

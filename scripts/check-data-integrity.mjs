@@ -13,6 +13,7 @@ const FILES = [
   "data/rank-data.js",
   "data/learning-data.js",
   "data/game-data.js",
+  "data/garden-data.js",
   "data/words/nyumon-words.js",
   "data/words/kyu10-words.js",
   "data/words/kyu9-words.js",
@@ -421,6 +422,33 @@ for (const item of game.outfits) {
 for (const course of game.courses) {
   ok(validDanIds.has(course.dan) && course.seconds > 0 && course.minLength > 0 && course.maxLength >= course.minLength, `NG [courier:${course.id}] 条件が不正です`);
   ok(DAN_WORDS.words.filter((word) => word.length >= course.minLength && word.length <= course.maxLength).length >= 5, `NG [courier:${course.id}] 語彙不足です`);
+}
+
+const plants = context.GARDEN_DATA?.plants;
+ok(Array.isArray(plants), "NG [garden] plants は配列で指定してください");
+if (Array.isArray(plants)) {
+  ok(plants.length === 3, "NG [garden] 草木は絵のある3種類を指定してください");
+  const plantIds = new Set();
+  for (const [index, plant] of plants.entries()) {
+    const id = plant?.id;
+    const tag = `NG [garden:${id || index}]`;
+    ok(typeof id === "string" && id.trim() && id === id.trim(), `${tag} id が不正です`);
+    ok(!plantIds.has(id), `${tag} id が重複しています`);
+    plantIds.add(id);
+    for (const field of ["label", "desc"]) {
+      ok(typeof plant?.[field] === "string" && plant[field].trim(), `${tag} ${field} が空です`);
+    }
+    const stages = plant?.stages;
+    ok(Array.isArray(stages) && stages.length === 4, `${tag} 成長段階は4つ必要です`);
+    if (!Array.isArray(stages)) continue;
+    const names = Array.from(stages, (name) => typeof name === "string" ? name.trim().normalize("NFC") : "");
+    names.forEach((name, i) => {
+      ok(/[ぁ-ゖァ-ヺ]/u.test(name) && /^[ぁ-ゖァ-ヺー 、。！？」「・]+$/u.test(name),
+        `${tag} stages[${i}] はかなで読める段階名にしてください`);
+    });
+    ok(uniqueItems(names), `${tag} 成長段階の名前が重複しています`);
+  }
+  for (const id of ["asagao", "take", "ume"]) ok(plantIds.has(id), `NG [garden] 植物ID ${id} がありません`);
 }
 
 const literature = context.LITERATURE_DATA;

@@ -1,4 +1,4 @@
-const APP_VERSION = "1.12.1";
+const APP_VERSION = "1.13.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -9,6 +9,11 @@ const UI_TEXT = globalThis.UI_TEXT = {
   keyboardOnly: "このアプリはキーボードをつないであそんでね",
   menuTraining: "<ruby>修行<rt>しゅぎょう</rt></ruby>",
   menuExam: "<ruby>試<rt>ため</rt></ruby>し",
+  garden: {
+    title: "里のにわ", choose: "そだてるものをえらぶ", selected: "おせわ中", complete: "そだちきったよ",
+    hint: "入門や級の修行、ことばや文の実戦をおえると、えらんだ草木がひとつそだつよ。",
+    empty: "どの草木をそだてよう？", preview: "先生の見本", practice: "修行にいく", grew: "{plant}がそだったよ。いまは「{stage}」！"
+  },
   menuJissen: "<ruby>実戦<rt>じっせん</rt></ruby>の<ruby>間<rt>ま</rt></ruby>",
   trainingDesc: {
     in: "あたらしいキーを、ゆびにおぼえさせる。",
@@ -66,7 +71,7 @@ const UI_TEXT = globalThis.UI_TEXT = {
 const NindaApp = globalThis.NindaApp = (function () {
   "use strict";
 
-  const screens = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"];
+  const screens = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"];
   let currentScreen = "S0";
   let teacherStageId = "";
   let teacherDanTargetId = "";
@@ -85,6 +90,8 @@ const NindaApp = globalThis.NindaApp = (function () {
     byId("notebookButton").textContent = UI_TEXT.learning.title;
     byId("notebookTitle").textContent = UI_TEXT.learning.title;
     byId("todayButton").textContent = UI_TEXT.learning.today;
+    byId("openGarden").textContent = byId("gardenTitle").textContent = UI_TEXT.garden.title;
+    byId("gardenPractice").textContent = UI_TEXT.garden.practice;
     wireEntry();
     wireImeGuard();
     wireEscape();
@@ -124,6 +131,10 @@ const NindaApp = globalThis.NindaApp = (function () {
     byId("jissenButton").addEventListener("click", openJissenMenu);
     byId("frontierButton").addEventListener("click", () => openStageMenu(SaveManager.ensure().unlockedStage));
     byId("todayButton").addEventListener("click", () => LearningManager.open("today"));
+    byId("gardenPractice").addEventListener("click", () => {
+      if (SaveManager.ensure().dan !== "none") openJissenMenu({ gardenOnly: true });
+      else openStageMenu(currentStage().id, { gardenOnly: true });
+    });
   }
 
   function wireEntry() {
@@ -205,6 +216,10 @@ const NindaApp = globalThis.NindaApp = (function () {
       if (resultOverlay && !resultOverlay.hidden) return;
       const menuOverlay = byId("menuOverlay");
       if (menuOverlay && !menuOverlay.hidden) return;
+      if (currentScreen === "S8") {
+        showScreen("S1");
+        return;
+      }
       if ((currentScreen === "S2" || currentScreen === "S3") && TrainingManager.hasSession()) {
         event.preventDefault();
         if (confirm("修行をやめて、さとにもどる？")) TrainingManager.stop(true);
@@ -224,10 +239,33 @@ const NindaApp = globalThis.NindaApp = (function () {
     if (id === "S5" && CollectionRenderer.renderLicense) CollectionRenderer.renderLicense();
     if (id === "S6" && CollectionRenderer.renderSettings) CollectionRenderer.renderSettings();
     if (id === "S7") LearningManager.render();
+    if (id === "S8") renderGarden();
     const firstButton = byId(id) && byId(id).querySelector("button, input");
     if (firstButton) window.setTimeout(() => {
       if (currentScreen === id && byId("resultOverlay").hidden && byId("menuOverlay").hidden && byId("imeOverlay").hidden) firstButton.focus();
     }, 0);
+  }
+
+  function renderGarden() {
+    const mount = byId("gardenMount");
+    const save = SaveManager.ensure();
+    // The teacher can preview a fully grown plant without changing the child's garden.
+    function draw(view) {
+      byId("gardenPractice").disabled = !view.garden.selected;
+      GardenRenderer.render(mount, view, (id) => {
+        const plant = GARDEN_DATA.plants.find((item) => item.id === id);
+        if (!plant) return;
+        if (SaveManager.isTeacherMode()) {
+          const garden = { selected: id, growth: { ...view.garden.growth, [id]: plant.stages.length - 1 } };
+          draw({ ...save, garden });
+        } else {
+          SaveManager.selectGardenPlant(id);
+          draw(SaveManager.ensure());
+        }
+        mount.querySelector(`[data-garden-plant="${id}"]`)?.focus();
+      });
+    }
+    draw(save);
   }
 
   function currentStage() {
@@ -265,7 +303,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     renderMap(save, teacherDan ? "" : stage.id);
   }
 
-  function openStageMenu(stageId) {
+  function openStageMenu(stageId, options = {}) {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode();
     const stage = CURRICULUM_DATA.stages.find((item) => item.id === stageId) || currentStage();
@@ -299,16 +337,17 @@ const NindaApp = globalThis.NindaApp = (function () {
     });
     openMenuModal({
       title: `${stage.label} ${stage.title}`,
-      cards,
+      cards: options.gardenOnly ? cards.filter((card) => card.id.startsWith("training-")) : cards,
       teacherBadge: teacher
     });
   }
 
-  function openJissenMenu() {
+  function openJissenMenu(options = {}) {
     const save = SaveManager.ensure();
     const teacher = SaveManager.isTeacherMode();
     if (!teacher && (!save.dan || save.dan === "none")) return;
-    const cards = RANK_DATA.jissenMenu.map((menu) => {
+    const menus = options.gardenOnly ? RANK_DATA.jissenMenu.filter((menu) => menu.growsGarden) : RANK_DATA.jissenMenu;
+    const cards = menus.map((menu) => {
       const unlocked = teacher || danIndex(save.dan) >= danIndex(menu.unlockDan);
       return {
         id: menu.id,
@@ -329,7 +368,7 @@ const NindaApp = globalThis.NindaApp = (function () {
       };
     });
     const targetDan = nextDanTarget(save);
-    if (targetDan && targetDan.exam) {
+    if (!options.gardenOnly && targetDan && targetDan.exam) {
       const locked = !teacher && !save.practicedDans.includes(save.dan);
       cards.push({
         id: "dan-exam",

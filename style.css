@@ -10,6 +10,12 @@
   --shu: #D4544A;
   --kin: #D9B45C;
   --take: #8FB878;
+  --garden-sky: #17283E;
+  --garden-moon: #ECE3BD;
+  --garden-ridge-far: #2B4356;
+  --garden-ridge-near: #415966;
+  --garden-wall: #998F7D;
+  --garden-lawn: #687D66;
   --rank-kin: #D9B45C;
   --rank-kin-text: #D9B45C;
   --rank-kin-bg: linear-gradient(100deg, #17120A, var(--yoru-deep));
@@ -58,6 +64,12 @@ body[data-theme="light"] {
   --shu: #C0392F;
   --kin: #8F6B23;
   --take: #4C6B39;
+  --garden-sky: #DCEBF2;
+  --garden-moon: #EFC080;
+  --garden-ridge-far: #B2C8C4;
+  --garden-ridge-near: #86A49C;
+  --garden-wall: #E1D2AF;
+  --garden-lawn: #B1C394;
   --rank-kin: #8F6B23;
   --rank-kin-text: #8B6720;
   --rank-kin-bg: #F7F0DC;
@@ -1362,6 +1374,72 @@ body[data-line-spacing="wide"] .learning-mount, body[data-line-spacing="wide"] .
 .wardrobe-icon svg { display: block; width: 52px; height: 70px; }
 .wardrobe-item small { color: var(--muted); margin-top: 8px; }
 .wardrobe-item.equipped { border-color: var(--chochin); }
+
+#S8 { max-width: 56rem; }
+.garden-scene {
+  margin: 0;
+  background: var(--yoru-deep);
+  border-bottom: 3px double var(--take);
+}
+.garden-scene > svg { display: block; width: 100%; height: auto; }
+.garden-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1rem;
+  padding: 0.875rem 1rem;
+  line-height: var(--prompt-leading, 1.6);
+  overflow-wrap: anywhere;
+}
+.garden-current, .garden-name { font-size: 1.125em; }
+.garden-description, .garden-hint { color: var(--muted); }
+.garden-preview, .garden-complete { color: var(--kin); font-weight: 700; }
+.garden-hint { margin-block: 0.75rem 1.25rem; line-height: var(--prompt-leading, 1.6); }
+.garden-choose { margin: 0; font-size: 1.125em; }
+.garden-plants {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
+  margin-block: 0.6rem 1.25rem;
+}
+.garden-plant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  min-height: 4.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--tsuki);
+  background: var(--surface);
+  border-color: var(--path-line);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.garden-name, .garden-stage { grid-column: 1; }
+.garden-stage { color: var(--muted); font-size: 0.875em; }
+.garden-selected {
+  grid-area: 1 / 2 / span 2;
+  align-self: center;
+  color: var(--take);
+  font-size: 0.875em;
+}
+.garden-plant[aria-pressed="true"] {
+  border-color: var(--take);
+  background: color-mix(in srgb, var(--take) 10%, var(--surface));
+}
+.garden-plant:hover { border-color: var(--chochin); }
+#gardenPractice { background: var(--action-bg); color: var(--action-text); }
+#S8 button:focus-visible {
+  outline: 3px solid var(--chochin);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+@media (forced-colors: active) {
+  .garden-plant[aria-pressed="true"] { border-color: Highlight; }
+  #S8 button:focus-visible { outline-color: Highlight; }
+}
+
 .shared-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .shared-form label, #sharedGenerated label { display: grid; gap: 8px; flex: 1 1 220px; min-width: 0; }
 .shared-form input, .shared-form select, #sharedGenerated textarea { width: 100%; min-width: 0; }

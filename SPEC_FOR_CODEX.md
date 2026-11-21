@@ -1,4 +1,4 @@
-# 忍打道 —NINDA DO— 現行統合仕様 v1.12.1
+# 忍打道 —NINDA DO— 現行統合仕様 v1.13.0
 
 正式名称は **忍打道 —NINDA DO—**（にんだどう）。ロゴ・タイトル・README・metaを統一する。
 発注者: Kou-no1。原仕様発注日: 2026-07-13。
@@ -13,6 +13,8 @@ v1.11.0は2026-10-03の6拡張一括承認を反映する。配送ルート・�
 v1.12.0は名文アドバンスドの承認を反映する。既存の確認済み本文を作品ごとに選び、時間なしで収録分を打ち切る修行と、時間制の実戦を分ける。新規本文は別途発注者監査を受けるまで出題しない。
 
 v1.12.1は監査表提示後の追加実装指示を受け、前版で保留した5作品・24お題を採用する。金子みすゞ3詩と新美南吉・宮沢賢治の抜粋を含み、書庫は計28作品・抜粋。今回以外の新規候補に対する監査ゲートは維持する。
+
+v1.13.0ではS1からS8「里のにわ」を開ける。選択した草木は入門・級の通常修行を完了するか、ことば・文章の実戦で正打が一打以上ある状態で時間を終えると一段育つ。全4段階で、草木を替えても成長を個別に保持する。先生は画面内だけで完成形をプレビューできる。セーブv1のgardenは完全バックアップの移行対象。
 
 ## 0. 目的・絶対規則
 
@@ -42,12 +44,12 @@ v1.12.1は監査表提示後の追加実装指示を受け、前版で保留し�
 
 ルート: index.html/style.css/README.md/SPEC_FOR_CODEX.md/IMPLEMENTATION_NOTES.md/favicon.svg/og.png/poster.html。
 _reference: data-design-v0.md/curriculum-map.md/ui-mockup.html/patch-history.md。
-data: finger/romaji/jutsu/nickname/curriculum/rank/learning/game/literatureの各-data.js、wordsにはnyumon・kyu10〜1・dan単語/文章・michi5コース。
-js: main/input-engine/metrics-engine/guide-renderer/training-manager/exam-manager/achievement-manager/collection-renderer/save-manager/audio-manager/svg-icons/learning-manager/ninja-game-manager/literature-manager。
+data: finger/romaji/jutsu/nickname/curriculum/rank/learning/game/garden/literatureの各-data.js、wordsにはnyumon・kyu10〜1・dan単語/文章・michi5コース。
+js: main/input-engine/metrics-engine/guide-renderer/training-manager/exam-manager/achievement-manager/collection-renderer/save-manager/audio-manager/svg-icons/learning-manager/ninja-game-manager/literature-manager/garden-renderer。
 scripts: check-data-integrity.mjs/check-system-regressions.mjs/check-browser-regressions.mjs。
 追加ファイルの理由はNOTESに残す。
 
-script順: finger→romaji→jutsu→nickname→curriculum→rank→learning→game→words（入門/10級〜1級/dan/michi）→literature-data→svg-icons→save→audio→input→metrics→guide→training→exam→achievement→collection→literature-manager→learning-manager→ninja-game-manager→main。posterはfinger→svg-icons→guide→初期化のみ。
+script順: finger→romaji→jutsu→nickname→curriculum→rank→learning→game→garden-data→words（入門/10級〜1級/dan/michi）→literature-data→svg-icons→save→audio→input→metrics→guide→training→exam→achievement→collection→literature-manager→learning-manager→ninja-game-manager→garden-renderer→main。posterはfinger→svg-icons→guide→初期化のみ。
 
 ## 1. 世界観・文言
 
@@ -71,6 +73,7 @@ script順: finger→romaji→jutsu→nickname→curriculum→rank→learning→g
 | S5 | 免状 | 名前/二つ名/段位/累計/最高気配/連撃/番付最高位/成長記録/印刷/合言葉 |
 | S6 | 設定 | 音/明表示/漢字表示/ポスター/観察表/完全バックアップ/合言葉復元/二段階削除/version/先生モード |
 | S7 | 修行帳 | 今日の復習・小修行・任務・キー習熟・読書・書庫・オフライン課題・身支度・共通お題 |
+| S8 | 里のにわ | 草木の選択・成長の確認・通常修行への入口・先生の見本 |
 
 sectionをhiddenで遷移。Tab/Enter/Esc、可視フォーカス。修行中Escは確認後中断し、結果・罰を出さない。打った分は保存するが、修行完了/合格にはしない。
 

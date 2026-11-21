@@ -115,6 +115,101 @@ test("teacher play cannot mutate progress or emit events", () => {
   s.setSetting("teacherMode", false); assert.equal(s.ensure().settings.teacherMode, false);
 });
 
+function finishGardenPractice(s) {
+  const summary = { mode: "training", correct: 1, miss: 0, accuracy: 1, rhythm: "静", maxCombo: 1, keyStats: {}, unitStats: {}, confusions: {} };
+  const event = { id: "nyumon1", stageId: "nyumon1", mode: summary.mode, purpose: "practice", completed: true,
+    correct: summary.correct, miss: summary.miss, acc: summary.accuracy, rhythm: summary.rhythm, maxCombo: 1, words: 1, keyStats: {}, readings: [], delivered: 0 };
+  s.addSessionSummary(event.stageId, summary, event.words, { growsGarden: true, event });
+  return event.gardenGrowth || null;
+}
+
+test("garden offers three distinct plants with named growth stages", () => {
+  const { context: c } = fixture();
+  const plants = c.GARDEN_DATA.plants;
+  assert.ok(Array.isArray(plants)); assert.equal(plants.length, 3);
+  assert.equal(new Set(plants.map((plant) => plant.id)).size, 3);
+  for (const { id, label, stages } of plants) {
+    assert.match(id, /\S/); assert.match(label, /\S/);
+    assert.ok(Array.isArray(stages) && stages.length >= 2, id);
+    for (const stage of stages) assert.match(stage, /\S/, id);
+  }
+});
+
+test("garden grows only the selected plant, one step at a time up to its own cap", () => {
+  const { context: c, advance } = fixture(); const s = c.SaveManager;
+  const plants = c.GARDEN_DATA.plants; const growth = {};
+  // Give one plant a different cap so a shared hard-coded maximum cannot pass.
+  plants[1].stages.push("extra stage");
+  s.create("しのび", "nyumon1");
+  assert.equal(finishGardenPractice(s), null);
+  for (const { id } of plants) {
+    s.selectGardenPlant(id); s.selectGardenPlant("not-a-plant");
+    assert.deepEqual(plain(finishGardenPractice(s)), { id, stage: 1 });
+    growth[id] = 1;
+    assert.deepEqual(plain(s.load().garden), { selected: id, growth });
+  }
+  advance(90 * 86400000);
+  assert.deepEqual(plain(s.load().garden), { selected: plants[plants.length - 1].id, growth });
+  for (const { id, stages } of plants) {
+    s.selectGardenPlant(id);
+    for (let stage = 2; stage < stages.length; stage += 1) {
+      assert.deepEqual(plain(finishGardenPractice(s)), { id, stage });
+    }
+    growth[id] = stages.length - 1;
+    assert.equal(finishGardenPractice(s), null);
+    assert.deepEqual(plain(s.load().garden), { selected: id, growth });
+  }
+});
+
+test("full backup restores the selected garden plant and independent growth", () => {
+  const { context: c } = fixture(); const s = c.SaveManager;
+  const [a, b] = c.GARDEN_DATA.plants;
+  s.create("しのび", "nyumon1"); s.selectGardenPlant(a.id); finishGardenPractice(s); s.selectGardenPlant(b.id);
+  const expected = { selected: b.id, growth: { [a.id]: 1, [b.id]: 0 } };
+  const backup = s.exportBackup();
+  assert.deepEqual(JSON.parse(backup).save.garden, expected);
+  s.reset(); s.restoreBackup(backup);
+  assert.deepEqual(plain(s.load().garden), expected);
+  assert.deepEqual(plain(finishGardenPractice(s)), { id: b.id, stage: 1 });
+});
+
+test("garden practice writes nothing in teacher mode and saves growth with the session in one write otherwise", () => {
+  const { context: c } = fixture(); const s = c.SaveManager;
+  const [a, b] = c.GARDEN_DATA.plants;
+  s.create("しのび", "nyumon1"); s.selectGardenPlant(a.id); s.setSetting("teacherMode", true);
+  const before = plain(s.load()); let writes = 0;
+  const setItem = c.localStorage.setItem;
+  c.localStorage.setItem = (key, value) => { writes += 1; setItem(key, value); };
+  s.selectGardenPlant(b.id);
+  assert.equal(finishGardenPractice(s), null);
+  assert.equal(writes, 0); assert.deepEqual(plain(s.load()), before);
+  s.setSetting("teacherMode", false); writes = 0;
+  assert.deepEqual(plain(finishGardenPractice(s)), { id: a.id, stage: 1 });
+  assert.equal(writes, 1);
+  const after = s.load();
+  assert.equal(after.totals.correct, before.totals.correct + 1); assert.equal(after.garden.growth[a.id], 1);
+});
+
+test("legacy and corrupted garden data normalize without losing the player's save", () => {
+  const { context: c, values } = fixture(); const s = c.SaveManager;
+  const [a, b, d] = c.GARDEN_DATA.plants;
+  const legacy = plain(s.create("しのび", "kyu5")); delete legacy.garden;
+  function loadGarden(fields) {
+    values.set(s.STORAGE_KEY, JSON.stringify({ ...legacy, ...fields }));
+    const loaded = s.load();
+    assert.equal(loaded.name, legacy.name); assert.equal(loaded.currentStage, legacy.currentStage);
+    return plain(loaded.garden);
+  }
+  for (const fields of [{}, { garden: null }, { garden: [] }]) {
+    assert.deepEqual(loadGarden(fields), { selected: "", growth: {} });
+  }
+  assert.deepEqual(loadGarden({ garden: { selected: a.id, growth: "bad" } }), { selected: a.id, growth: { [a.id]: 0 } });
+  const damaged = { selected: "unknown", growth: { [a.id]: 999, [b.id]: -1, [d.id]: "2", unknown: 1 } };
+  assert.deepEqual(loadGarden({ garden: damaged }), { selected: "", growth: { [a.id]: a.stages.length - 1, [b.id]: 0, [d.id]: 0 } });
+  assert.equal(finishGardenPractice(s), null);
+  s.selectGardenPlant(b.id); assert.deepEqual(plain(finishGardenPractice(s)), { id: b.id, stage: 1 });
+});
+
 test("streak follows JST today/yesterday/gap and starts at actual practice", () => {
   const f = fixture(); const s = f.context.SaveManager; s.create("しのび", "kyu10");
   assert.equal(s.ensure().streak.days, 0);

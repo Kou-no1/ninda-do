@@ -43,6 +43,7 @@ const SaveManager = globalThis.SaveManager = (function () {
       confusions: {},
       learning: LearningManager.emptyState(),
       game: NinjaGameManager.emptyProgress(),
+      garden: { selected: "", growth: {} },
       examAttempts: {},
       weakTargets: [],
       best: { shippuScore: 0, kpm: 0, rhythm: "—", combo: 0, banzuke: {}, courier: {} },
@@ -55,6 +56,23 @@ const SaveManager = globalThis.SaveManager = (function () {
   function sanitizeName(name) {
     const safe = String(name || "しのびまる").replace(/[^\u3040-\u30ffA-Za-z0-9ー_-]/g, "").slice(0, 10);
     return safe || "しのびまる";
+  }
+
+  function gardenPlants() {
+    return typeof GARDEN_DATA !== "undefined" ? GARDEN_DATA.plants : [];
+  }
+
+  function normalizeGarden(value) {
+    const garden = { selected: "", growth: {} };
+    if (!value || typeof value !== "object" || Array.isArray(value)) return garden;
+    const growth = value.growth && typeof value.growth === "object" && !Array.isArray(value.growth) ? value.growth : {};
+    for (const { id, stages } of gardenPlants()) {
+      if (value.selected === id) garden.selected = id;
+      if (value.selected !== id && !Object.prototype.hasOwnProperty.call(growth, id)) continue;
+      const stage = growth[id];
+      garden.growth[id] = Number.isFinite(stage) ? Math.max(0, Math.min(stages.length - 1, Math.floor(stage))) : 0;
+    }
+    return garden;
   }
 
   function load() {
@@ -119,6 +137,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     merged.settings.lineSpacing = merged.settings.lineSpacing === "wide" ? "wide" : "normal";
     merged.learning = LearningManager.normalizeState(save.learning);
     merged.game = NinjaGameManager.normalizeProgress(save.game);
+    merged.garden = normalizeGarden(save.garden);
     merged.unitStats = Object.fromEntries(Object.entries(save.unitStats || {}).filter(([unit, stat]) =>
       (ROMAJI_TABLE[unit] || FINGER_DATA.keys[unit]) && stat && typeof stat === "object").map(([unit, stat]) =>
       [unit, { attempts: number(stat.attempts), misses: Math.min(number(stat.attempts), number(stat.misses)) }]));
@@ -246,9 +265,14 @@ const SaveManager = globalThis.SaveManager = (function () {
       if (summary.correct + summary.miss > 0) updateStreak(saveData);
       MetricsEngine.weakKeys(saveData.keyStats, 5).filter((item) => item.missRate > 0.1).forEach((item) => addUnique(saveData.weakTargets, item.key));
       if (options && options.event) {
-        LearningManager.applySession(saveData, options.event, todayJst());
-        NinjaGameManager.applyRewards(saveData, options.event);
-        appendEvent(saveData, "session_end", options.event);
+        const event = options.event;
+        LearningManager.applySession(saveData, event, todayJst());
+        NinjaGameManager.applyRewards(saveData, event);
+        const growth = !options.partial && options.growsGarden && event.completed && event.correct > 0
+          ? advanceGarden(saveData.garden) : null;
+        if (growth) event.gardenGrowth = growth;
+        else delete event.gardenGrowth;
+        appendEvent(saveData, "session_end", event);
       }
     });
   }
@@ -374,6 +398,25 @@ const SaveManager = globalThis.SaveManager = (function () {
     return update((saveData) => {
       if (saveData.nicknames.includes(id)) saveData.equippedNickname = id;
     });
+  }
+
+  function selectGardenPlant(id) {
+    if (!gardenPlants().some((plant) => plant.id === id)) return null;
+    const current = ensure();
+    const garden = current.garden;
+    if (isTeacherMode(current) || garden.selected === id) return null;
+    garden.selected = id;
+    garden.growth[id] = garden.growth[id] || 0;
+    save(current);
+    return { id, stage: garden.growth[id] };
+  }
+
+  function advanceGarden(garden) {
+    const { selected: id, growth } = garden;
+    const plant = gardenPlants().find((item) => item.id === id);
+    if (!plant || growth[id] >= plant.stages.length - 1) return null;
+    const stage = ++growth[id];
+    return { id, stage };
   }
 
   function grantNickname(id) {
@@ -567,6 +610,7 @@ const SaveManager = globalThis.SaveManager = (function () {
     sanitizeName,
     setSetting,
     setEquippedNickname,
+    selectGardenPlant,
     grantNickname,
     exportCode,
     restoreCode,

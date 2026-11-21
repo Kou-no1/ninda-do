@@ -222,6 +222,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       guideLevel: stage.type === "nyumon" ? 3 : stage.guideLevelTraining,
       mode: "training",
       purpose: menuIndex === "review" ? "review" : "practice",
+      growsGarden: menuIndex !== "review",
       retry() { start(stageId, menuIndex); },
       onComplete(summary, state) {
         if (globalThis.AchievementManager) AchievementManager.checkSession(summary);
@@ -479,6 +480,9 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ? `<p class="teacher-result-note">先生モードのため、記録はのこりません</p>`
       : "";
     const resultData = state.resultData || {};
+    const grownPlant = state.gardenGrowth && GARDEN_DATA.plants.find((plant) => plant.id === state.gardenGrowth.id);
+    const gardenMessage = grownPlant && UI_TEXT.garden.grew.replace("{plant}", grownPlant.label)
+      .replace("{stage}", grownPlant.stages[state.gardenGrowth.stage]);
     const advice = state.config.screen === "S2" && state.config.advice !== false ? LearningManager.advice(summary, state.config.contentStageId || state.config.stageId) : null;
     const speedHtml = isJissen
       ? `<div class="result-speed">
@@ -501,6 +505,7 @@ const TrainingManager = globalThis.TrainingManager = (function () {
           <div><span>ミス</span><strong>${summary.miss}</strong></div>
         </div>
         ${speedHtml}
+        ${gardenMessage ? `<p class="result-garden">${escapeHtml(gardenMessage)}</p>` : ""}
         ${weakKeysHtml(summary)}
         ${growthHtml(summary, state.previousRecord)}
         ${resultData.detail ? `<p class="result-game-detail">${escapeHtml(resultData.detail)}</p>` : ""}
@@ -844,7 +849,8 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       ...(run.mode === "jissen" ? { kpm: summary.kpm } : {})
     };
     SaveManager.addSessionSummary(run.config.stageId, delta, run.completedItems - before.words,
-      { partial: partial || aborted, event });
+      { partial: partial || aborted, event, growsGarden: run.config.growsGarden === true });
+    if (event?.gardenGrowth) run.gardenGrowth = event.gardenGrowth;
     run.persisted = { correct: summary.correct, miss: summary.miss, words: run.completedItems, keyStats: summary.keyStats, unitStats: summary.unitStats, confusions: summary.confusions };
     if (!partial) SaveManager.flush();
   }

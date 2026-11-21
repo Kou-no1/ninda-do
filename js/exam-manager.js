@@ -235,6 +235,7 @@ const ExamManager = globalThis.ExamManager = (function () {
       stageId: "jissen",
       title: menu.label,
       items,
+      growsGarden: menu.growsGarden === true,
       guideLevel: 1,
       mode: menu.seconds ? "jissen" : "training",
       seconds: menu.seconds || 0,
