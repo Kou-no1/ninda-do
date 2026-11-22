@@ -28,6 +28,19 @@ function fixture(storageOptions = {}) {
   return { context, values, advance: (ms) => { time += ms; } };
 }
 
+test("PWA release and fixed offline list match the application, manifest and installed icons", () => {
+  const base = "https://example.invalid/class/ninda-do/";
+  const ctx = vm.createContext({URL, self:{registration:{scope:base},addEventListener(){}}});
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), ctx);
+  const {assets, RELEASE} = vm.runInContext("({assets, RELEASE})", ctx);
+  assert.equal(RELEASE, vm.runInContext("APP_VERSION", fixture().context));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root,"manifest.webmanifest"),"utf8"));
+  const files = [...new Set([...scripts,"index.html","poster.html","style.css","dojo-design.css","manifest.webmanifest","favicon.svg",
+    "icons/ninda-180.png",...manifest.icons.map(icon=>icon.src)])];
+  assert.deepEqual(Array.from(assets).sort(), files.map(file=>new URL(file,base).href).sort());
+  for (const file of files) assert.ok(fs.statSync(path.join(root,file)).size > 0, file);
+});
+
 test("KPM uses all elapsed time, not the last hit", () => {
   const f = fixture(); const metrics = f.context.MetricsEngine.createSession({ mode: "jissen" });
   f.advance(1000);

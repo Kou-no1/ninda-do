@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { checkPwa } from "./check-pwa.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = fs.mkdtempSync(path.join(os.tmpdir(), "ninda-regressions-"));
@@ -96,6 +97,7 @@ try {
 
   await test("file startup and IME name-entry isolation", async () => {
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('link[rel=manifest]') === null"), true);
     await evaluate("document.getElementById('ninjaName').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));");
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     assert.equal(errors.length, 0);
@@ -1016,7 +1018,7 @@ try {
     assert.ok(await evaluate("[...document.querySelectorAll('.library-work small')].some(el=>el.textContent.includes('うちきった'))"));
     await screenshot("literature-misuzu-library.png");
     await evaluate("NindaApp.showScreen('S6');");
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.15.0')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.16.0')"), true);
   });
 
   await test("advanced library and long excerpts fit both themes and widths; grade return has no speed DOM", async () => {
@@ -1106,7 +1108,12 @@ try {
 
   assert.equal(errors.length, 0, JSON.stringify(errors));
   assert.equal(network.filter((url) => /^https?:/.test(url)).length, 0);
-  fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ tests: count, errors, network }, null, 2));
+  const fileNetwork = network.slice();
+  await test("PWA installs its whole scoped shell, waits for open games and plays after an offline cold launch",
+    () => checkPwa({root, send, evaluate, delay}));
+  assert.equal(errors.length, 0, JSON.stringify(errors));
+  assert.ok(network.slice(fileNetwork.length).every(url => !/^https?:/.test(url) || new URL(url).hostname === "127.0.0.1"));
+  fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ tests: count, errors, network: fileNetwork, pwaRequests: network.length - fileNetwork.length }, null, 2));
   console.log(`OK browser regressions: ${count} tests; artifacts: ${output}`);
   await send("Browser.close");
 } finally { if (ws) ws.close(); browser.kill(); }

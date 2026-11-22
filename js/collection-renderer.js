@@ -315,8 +315,14 @@ const CollectionRenderer = globalThis.CollectionRenderer = (function () {
         <button id="deleteStep1">データ削除へ</button>
         <button id="deleteStep2" hidden>ほんとうに削除する</button>
       </div>
+      <fieldset class="readability-settings" id="pwaSettings" hidden><legend>${UI_TEXT.pwa.title}</legend>
+        <p role="status"></p><p data-manual>${UI_TEXT.pwa.manual}</p>
+        <button type="button" data-install hidden>${UI_TEXT.pwa.install}</button>
+        <button type="button" data-retry hidden>${UI_TEXT.pwa.retry}</button>
+      </fieldset>
       <p id="versionLabel" class="version-label" tabindex="0">忍打道 —NINDA DO— v${APP_VERSION}</p>
       <div id="teacherUnlockMount" class="teacher-unlock" hidden></div>`;
+    PwaManager.bind();
     document.getElementById("seSetting").addEventListener("change", (event) => SaveManager.setSetting("se", event.target.checked));
     document.getElementById("voiceSetting").addEventListener("change", (event) => {
       SaveManager.setSetting("voice", event.target.checked);

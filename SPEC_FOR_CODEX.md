@@ -1,4 +1,4 @@
-# 忍打道 —NINDA DO— 現行統合仕様 v1.15.0
+# 忍打道 —NINDA DO— 現行統合仕様 v1.16.0
 
 正式名称は **忍打道 —NINDA DO—**（にんだどう）。ロゴ・タイトル・README・metaを統一する。
 発注者: Kou-no1。原仕様発注日: 2026-07-13。
@@ -29,9 +29,9 @@ v1.14.0では巻物便の各コースに灯つなぎ便を追加する。通常�
 3. ガイド量はdataのguideLevelで決まり、級ごとのハードコードは禁止。
 4. 1級合格で免許皆伝・下忍・疾風の術、時間制実戦のKPMを解禁する。
 5. 不合格を罰にせず「まだ機（き）は熟していない。もういちど修行だ！」と不足基準を示す。何度でも再挑戦可能。
-6. ビルド・ES Modules・fetch/XHR・CDN・Webフォント・ライブラリは禁止。通常script順次読み込み。file://で全機能、相対パス、実行時外部HTTP(S)リクエスト0。
-7. 画像はインラインSVG、音はWebAudio合成、読み上げはWeb Speech API。画像/音声ファイルは禁止。JSから読まない静的メタfavicon.svg/og.pngだけ例外。
-8. 保存はlocalStorage。syncAdapterは既定null、実送信を実装しない。ロジックjsと語彙/難易度/技能/合格基準dataを分離する。
+6. ビルド・ES Modules・fetch()/XHR・CDN・Webフォント・ライブラリは禁止。通常script順次読み込み。file://で全修行・教具が動く。相対パス、実行時外部HTTP(S)リクエスト0。PWAのインストールとキャッシュは安全なWeb配信環境のみで有効。
+7. 画像はインラインSVG、音はWebAudio合成、読み上げはWeb Speech API。静的メタのfavicon.svg/og.pngおよびOS用のインストールアイコン3サイズを除き、画像/音声ファイルを持たない。
+8. 学習記録の保存はlocalStorage。PWAは同一スコープの公開静的資産だけをCache Storageに保存し、学習記録・課題・バックアップをキャッシュしない。syncAdapterは既定null、実送信を実装しない。ロジックjsと語彙/難易度/技能/合格基準dataを分離する。
 9. KeyboardEvent.keyでJIS/US対応。にんじゃネームは10文字まで、ひらがな/カタカナ/英数等。「ほんとうの名まえじゃなくていいよ」。本名・個人情報・アカウントを持たない。
 10. 実際の指使いはキーイベントでは測れない。アプリ合格は打鍵の判定で、身体の運指は先生の観察で補う。
 
@@ -45,6 +45,8 @@ v1.14.0では巻物便の各コースに灯つなぎ便を追加する。通常�
 - 進捗復元のかな合言葉は変更しない。新しいgame記録は完全JSONバックアップで移す。新規ファイル・依存・script読み込みは追加しない。
 
 ### ファイル・順序
+
+v1.16.0でmanifest.webmanifest、ルートのsw.js、icons/の180・192・512px PNG、js/pwa.js（headでdefer）、scripts/check-pwa.mjs（Chrome検査用）を追加。サービスワーカーは同梱資産がすべてそろってから利用可能になり、旧版の画面が閉じるまで更新を待つ。配信物の変更時はsw.jsのRELEASEとAPP_VERSIONを同時に上げる。
 
 ルート: index.html/style.css/dojo-design.css/README.md/SPEC_FOR_CODEX.md/IMPLEMENTATION_NOTES.md/favicon.svg/og.png/poster.html。
 _reference: data-design-v0.md/curriculum-map.md/ui-mockup.html/patch-history.md。

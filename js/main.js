@@ -1,8 +1,16 @@
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.16.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
   appName: "忍打道 —NINDA DO—",
+  pwa: {
+    title: "アプリとオフライン", preparing: "オフラインのじゅんび中。",
+    ready: "オフラインでしゅぎょうできるよ。",
+    failed: "じゅんびできなかったよ。ネットにつないで、もういちどためしてね。",
+    update: "あたらしい版のじゅんびができたよ。忍打道をすべてとじて、ひらきなおしてね。",
+    installed: "アプリはインストールずみだよ。", install: "アプリを入れる", retry: "じゅんびをやりなおす",
+    manual: "ブラウザのメニューに「インストール」や「ホーム画面に追加」があれば、そこからも入れられるよ。"
+  },
   catch: "型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。——それが、忍打道。",
   fail: "まだ機（き）は熟していない。もういちど修行だ！",
   noPractice: "まずは一回、しゅぎょうしてからいどもう。",
