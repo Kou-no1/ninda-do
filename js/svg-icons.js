@@ -1,12 +1,9 @@
 const SVG_ICONS = globalThis.SVG_ICONS = {
   logo() {
-    return `<svg viewBox="0 0 760 260" role="img" aria-label="忍打道 —NINDA DO—">
-      <path d="M84 198 C168 124 256 150 340 86 C438 24 548 70 674 42" fill="none" stroke="var(--chochin)" stroke-width="10" stroke-linecap="round"/>
-      <text x="380" y="118" text-anchor="middle" font-size="72" font-weight="900" fill="var(--tsuki)">忍打道</text>
-      <text x="380" y="174" text-anchor="middle" font-size="34" font-weight="800" fill="var(--chochin)">—NINDA DO—</text>
-      <circle cx="116" cy="74" r="26" fill="var(--tsuki)" opacity="0.95"/>
-      <path d="M102 75 h28 M116 61 v28" stroke="var(--yoru-deep)" stroke-width="5" stroke-linecap="round"/>
-      <path d="M78 210 h604" stroke="rgba(236,231,216,.24)" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 14"/>
+    return `<svg viewBox="0 0 355 133" role="img" aria-label="忍打道 —NINDA DO—">
+      <text x="0" y="89" font-size="92" font-weight="800" fill="currentColor" font-family="Yu Mincho, Hiragino Mincho ProN, serif">忍打道</text>
+      <path d="M2 116h34m166 0h71" stroke="currentColor" opacity=".65"/>
+      <text x="47" y="122" font-size="19" font-weight="700" fill="currentColor" font-family="Georgia, serif">—NINDA DO—</text>
     </svg>`;
   },
   moon() {

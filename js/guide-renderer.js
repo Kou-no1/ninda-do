@@ -6,6 +6,7 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", "."]
   ];
+  const lastGuide = new WeakMap();
 
   function render(target, options) {
     if (!target) return;
@@ -13,12 +14,17 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
     const expectedKeys = options && options.expectedKeys ? options.expectedKeys : [];
     const rescue = options && options.rescue;
     if (guideLevel < 2 && !rescue) {
-      target.innerHTML = "";
+      if (target.firstChild) target.replaceChildren();
+      lastGuide.delete(target);
       return;
     }
+    const signature = [guideLevel, Boolean(rescue), Boolean(options?.fingerSymbols), ...expectedKeys].join(":");
+    const previous = lastGuide.get(target);
+    if (previous?.signature === signature && previous.keyboard === target.firstElementChild) return;
     const keyboard = renderKeyboard(expectedKeys, options);
     const hand = (guideLevel >= 3 || rescue) ? renderHands(expectedKeys, options && options.fingerSymbols) : "";
     target.innerHTML = keyboard + hand;
+    lastGuide.set(target, {signature, keyboard: target.firstElementChild});
   }
 
   function renderKeyboard(expectedKeys, options) {
@@ -34,29 +40,32 @@ const GuideRenderer = globalThis.GuideRenderer = (function () {
         const enough = stat && stat.attempts >= LEARNING_DATA.mastery.minAttempts;
         const accuracy = enough ? 1 - stat.misses / stat.attempts : 0;
         const mastery = options && options.mastery ? `<small class="key-mastery">${enough ? `${accuracy >= LEARNING_DATA.mastery.secure ? "○" : accuracy >= LEARNING_DATA.mastery.developing ? "△" : "・"} ${Math.round(accuracy * 100)}%` : "—"}</small>` : "";
-        return `<div class="key${next}" data-key="${key}" style="border-color:${color}" title="${FINGER_DATA.fingerLabels[info.finger]}"><span class="key-letter">${label}</span>${symbol}${mastery}</div>`;
+        return `<div class="key${next}" data-key="${key}" style="--finger-ink:${color};border-color:${color}" title="${FINGER_DATA.fingerLabels[info.finger]}"><span class="key-letter">${label}</span>${symbol}${mastery}</div>`;
       }).join("")}</div>`;
     }).join("")}</div>`;
   }
 
   function renderHands(expectedKeys, symbols) {
     const fingers = new Set(expectedKeys.map((key) => FINGER_DATA.keys[key] && FINGER_DATA.keys[key].finger).filter(Boolean));
-    const fingerShapes = [
-      ["L5", 85, 68, 30, 112], ["L4", 120, 46, 30, 134], ["L3", 155, 34, 30, 146], ["L2", 190, 54, 34, 126],
-      ["R2", 358, 54, 34, 126], ["R3", 397, 34, 30, 146], ["R4", 432, 46, 30, 134], ["R5", 467, 68, 30, 112]
+    const shapes = [
+      [5, 96, 72, "M98 125 85 74q-3-17 9-19 10-2 14 14l13 47"],
+      [4, 124, 46, "M121 116 113 49q-2-18 11-19 12 0 14 17l9 64"],
+      [3, 157, 35, "M147 111 145 36q0-18 13-18 12 0 13 18l2 74"],
+      [2, 188, 50, "M173 110 176 52q1-18 14-17 13 1 11 19l-3 73"]
     ];
-    return `<div class="hand-guide" aria-label="指ガイド"><svg viewBox="0 0 580 220" role="img">
-      <rect x="68" y="130" width="170" height="58" rx="28" fill="transparent" stroke="var(--tsuki)" stroke-width="4"/>
-      <rect x="342" y="130" width="170" height="58" rx="28" fill="transparent" stroke="var(--tsuki)" stroke-width="4"/>
-      ${fingerShapes.map(([id, x, y, w, h]) => {
-        const active = fingers.has(id);
-        const fill = active ? FINGER_DATA.fingerColors[id] : "transparent";
-        const label = active ? FINGER_DATA.fingerLabels[id] : "";
-        return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="15" fill="${fill}" stroke="var(--tsuki)" stroke-width="${active ? 5 : 3}"/><title>${label}</title>${symbols ? `<text x="${x + w / 2}" y="${y + 24}" text-anchor="middle" font-size="13" fill="${active ? "var(--sumi)" : "var(--tsuki)"}">${FINGER_DATA.fingerSymbols[id]}</text>` : ""}</g>`;
-      }).join("")}
-      <text x="154" y="210" text-anchor="middle" font-size="18" fill="var(--tsuki)">ひだり手</text>
-      <text x="426" y="210" text-anchor="middle" font-size="18" fill="var(--tsuki)">みぎ手</text>
-    </svg></div>`;
+    const hands = ["L", "R"].map(side => {
+      const right = side === "R";
+      const activeLabel = shapes.find(([n]) => fingers.has(side + n));
+      const label = activeLabel ? FINGER_DATA.fingerLabels[side + activeLabel[0]] : right ? "みぎ手" : "ひだり手";
+      return `<g transform="${right ? "translate(580 0) scale(-1 1)" : "translate(0)"}" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+        <path d="M98 125q6 34 23 52l4 12h55l5-15q16-11 27-28l23-30q6-12-4-15-8-3-15 6l-18 20-4-27-91 3Z" fill="var(--surface)" stroke="var(--muted)"/>
+        ${shapes.map(([n,x,y,d]) => `<path data-finger="${side+n}" d="${d}" fill="${fingers.has(side+n) ? FINGER_DATA.fingerColors[side+n] : "var(--surface)"}" stroke="${fingers.has(side+n) ? "var(--tsuki)" : "var(--muted)"}"/>`).join("")}
+        <path d="m119 140 22 7m34-5q-2 14-11 21m-40 16h54" fill="none" stroke="var(--muted)" opacity=".55"/>
+      </g>${symbols ? shapes.map(([n,x,y]) => `<text x="${right ? 580-x : x}" y="${y+10}" text-anchor="middle" fill="${fingers.has(side+n) ? "var(--sumi)" : "var(--tsuki)"}" font-size="16">${FINGER_DATA.fingerSymbols[side+n]}</text>`).join("") : ""}
+      <text x="${right ? 428 : 152}" y="215" text-anchor="middle" fill="var(--tsuki)" font-size="17">${label}</text>`;
+    });
+    const label = [...fingers].map(id => FINGER_DATA.fingerLabels[id]).join("、");
+    return `<div class="hand-guide"><svg viewBox="64 8 452 214" role="img" aria-label="指ガイド ${label}">${hands.join("")}</svg></div>`;
   }
 
   function renderPoster(target) {

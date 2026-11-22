@@ -1,4 +1,4 @@
-const APP_VERSION = "1.14.0";
+const APP_VERSION = "1.15.0";
 const TEACHER_PASSCODE = "2361";
 
 const UI_TEXT = globalThis.UI_TEXT = {
@@ -95,6 +95,7 @@ const NindaApp = globalThis.NindaApp = (function () {
   }
 
   function init() {
+    VillageArt.mount();
     const logo = byId("logoMount");
     if (logo) logo.innerHTML = SVG_ICONS.logo();
     wireNavigation();
@@ -103,6 +104,7 @@ const NindaApp = globalThis.NindaApp = (function () {
     byId("todayButton").textContent = UI_TEXT.learning.today;
     byId("openGarden").textContent = byId("gardenTitle").textContent = UI_TEXT.garden.title;
     byId("gardenPractice").textContent = UI_TEXT.garden.practice;
+    VillageArt.markNavigation();
     wireEntry();
     wireImeGuard();
     wireEscape();

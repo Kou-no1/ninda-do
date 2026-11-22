@@ -13,9 +13,11 @@
   <title>忍打道 —NINDA DO—</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="dojo-design.css" media="screen">
 </head>
 <body>
   <div id="app" class="app-shell">
+    <div id="woodBlocks" aria-hidden="true"></div>
     <div id="imeOverlay" class="overlay" hidden>
       <div class="dialog" role="alertdialog" aria-labelledby="imeOverlayTitle">
         <h2 id="imeOverlayTitle">にほんごにゅうりょくを オフにしてね</h2>
@@ -35,7 +37,10 @@
     </div>
 
     <section id="S0" class="screen title-screen">
-      <div id="logoMount" class="logo-mount"></div>
+      <svg class="gate-print" aria-hidden="true" focusable="false" viewBox="0 0 1440 570" preserveAspectRatio="xMaxYMid slice"><use href="#wood-print"/></svg>
+      <div class="gate-content">
+      <div class="gate-kicker"><svg aria-hidden="true" viewBox="0 0 64 64"><use href="#wood-mark"/></svg>キーの里 <span aria-hidden="true">／</span> 忍打道場</div>
+      <h1 id="logoMount" class="logo-mount"></h1>
       <p class="catch">型（かた）をきわめた者だけが、疾風（はやて）をゆるされる。<br>——それが、忍打道。</p>
       <form id="nameForm" class="entry-panel">
         <label for="ninjaName">にんじゃネーム</label>
@@ -48,12 +53,12 @@
         </div>
       </form>
       <p class="keyboard-note">このアプリはキーボードをつないであそんでね</p>
+      </div>
     </section>
 
     <section id="S1" class="screen" hidden>
       <header class="topbar">
         <div>
-          <p class="eyebrow">キーの里</p>
           <h1>忍打道 —NINDA DO—</h1>
         </div>
         <nav class="top-actions" aria-label="画面">
@@ -65,6 +70,10 @@
         </nav>
       </header>
       <p id="storageWarning" class="storage-warning" role="status" hidden></p>
+      <div class="village-banner">
+        <svg class="village-print" viewBox="0 0 1440 422" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" focusable="false"><use href="#wood-print"/></svg>
+        <h2><svg aria-hidden="true" viewBox="0 0 64 64"><use href="#wood-mark"/></svg>キーの里</h2>
+      </div>
       <main class="home-grid">
         <section class="map-panel" aria-label="修行マップ">
           <div id="mapMount" class="mountain-map"></div>
@@ -84,6 +93,7 @@
     </section>
 
     <section id="S2" class="screen play-screen" hidden>
+      <svg class="dojo-print" viewBox="0 0 1440 570" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false"><use href="#wood-print"/></svg>
       <header class="play-header">
         <button class="backHome">さとへ</button>
         <h1 id="trainingTitle">修行</h1>
@@ -101,6 +111,7 @@
     </section>
 
     <section id="S3" class="screen play-screen" hidden>
+      <svg class="dojo-print" viewBox="0 0 1440 570" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false"><use href="#wood-print"/></svg>
       <header class="play-header">
         <button class="backHome">さとへ</button>
         <h1 id="examTitle">試し</h1>
@@ -176,6 +187,7 @@
   <script src="data/words/michi-kage.js"></script>
   <script src="data/literature-data.js"></script>
   <script src="js/svg-icons.js"></script>
+  <script src="js/village-art.js"></script>
   <script src="js/save-manager.js"></script>
   <script src="js/audio-manager.js"></script>
   <script src="js/input-engine.js"></script>

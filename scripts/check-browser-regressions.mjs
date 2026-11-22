@@ -25,7 +25,9 @@ const network = [];
 
 try {
   const portFile = path.join(profile, "DevToolsActivePort");
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i += 1) await delay(100);
+  const startupDeadline = Date.now() + 45000;
+  while (!fs.existsSync(portFile) && Date.now() < startupDeadline && browser.exitCode === null) await delay(100);
+  if (!fs.existsSync(portFile)) throw new Error(`Chrome did not open a debugging port (exit: ${browser.exitCode ?? "timeout"})`);
   const port = Number(fs.readFileSync(portFile, "utf8").split("\n")[0]);
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   ws = new WebSocket(targets.find((target) => target.type === "page").webSocketDebuggerUrl);
@@ -97,6 +99,32 @@ try {
     await evaluate("document.getElementById('ninjaName').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));");
     assert.equal(await evaluate("document.getElementById('imeOverlay').hidden"), true);
     assert.equal(errors.length, 0);
+  });
+
+  await test("woodblock gate, village and typing guides fit without covering the current key", async () => {
+    const metrics = (width,height) => send("Emulation.setDeviceMetricsOverride", {width,height,deviceScaleFactor:1,mobile:false});
+    await metrics(1200,630);
+    assert.equal(await evaluate("!document.getElementById('S0').hidden && !!document.getElementById('wood-print')"), true);
+    await screenshot("wood-gate-og.png");
+    await metrics(390,844);
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
+    await screenshot("wood-gate-390.png");
+    await fresh("kyu9");
+    for (const [width,theme] of [[1366,"night"],[1024,"light"]]) {
+      await metrics(width,768);
+      await evaluate(`SaveManager.setSetting('display','${theme}');NindaApp.applyTheme();NindaApp.showScreen('S1');window.scrollTo(0,0);`);
+      await screenshot(`wood-village-${width}.png`);
+      await evaluate("NindaApp.showScreen('S2');TrainingManager.startRunner({screen:'S2',stageId:'kyu9',title:'9きゅう　もどりの術',items:[{text:'fjfj',kind:'in'}],guideLevel:3,mode:'training'});__key('f');");
+      assert.equal(await evaluate("document.querySelector('#guideMount .key.next').dataset.key"), "j");
+      assert.equal(await evaluate("document.querySelector('#guideMount [data-finger=R2]').getAttribute('fill')"), await evaluate("FINGER_DATA.fingerColors.R2"));
+      assert.ok(await evaluate("document.querySelector('#progressMount').getBoundingClientRect().bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth"));
+      assert.ok(await evaluate("document.querySelector('#guideMount').innerText.includes('みぎの ひとさしゆび') || document.querySelector('#guideMount').textContent.includes(FINGER_DATA.fingerLabels.R2)"));
+      await screenshot(`wood-dojo-${width}.png`);
+      assert.ok(await evaluate("(()=>{const k=document.querySelector('#guideMount .keyboard');__key('x');return document.querySelector('#guideMount .keyboard')===k;})()"));
+      await evaluate("TrainingManager.stop(false)");
+    }
+    await metrics(1366,768);
+    await evaluate("SaveManager.setSetting('display','night');SaveManager.reset();NindaApp.showScreen('S0');");
   });
 
   await test("garden entry, grade practice, reload and read-only teacher preview stay free of speed", async () => {
@@ -988,7 +1016,7 @@ try {
     assert.ok(await evaluate("[...document.querySelectorAll('.library-work small')].some(el=>el.textContent.includes('うちきった'))"));
     await screenshot("literature-misuzu-library.png");
     await evaluate("NindaApp.showScreen('S6');");
-    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.14.0')"), true);
+    assert.equal(await evaluate("document.getElementById('versionLabel').textContent.endsWith('v1.15.0')"), true);
   });
 
   await test("advanced library and long excerpts fit both themes and widths; grade return has no speed DOM", async () => {

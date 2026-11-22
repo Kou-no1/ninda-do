@@ -444,13 +444,13 @@ const TrainingManager = globalThis.TrainingManager = (function () {
       fingerSymbols: SaveManager.ensure().settings.fingerSymbols
     });
     if (progress) {
-      const dots = active.deadlineSeconds ? "" : active.items.map((_, index) => index < active.index ? "●" : index === active.index ? "◐" : "○").join("");
-      progress.textContent = active.deadlineSeconds ? `${active.completedItems}問 おわった` : `${dots}（${Math.min(active.index + 1, active.items.length)} / ${active.items.length}）`;
       if (active.config.presentation === "literature") progress.textContent = UI_TEXT.literature.part.replace("{title}", item.workTitle || active.config.title).replace("{index}", String((item.partIndex || 0) + 1)).replace("{total}", String(item.partTotal || active.items.length));
+      else if (active.deadlineSeconds) progress.textContent = `${active.completedItems}問 おわった`;
+      else progress.innerHTML = `<progress aria-label="おわった数" max="${active.items.length}" value="${active.completedItems}"></progress>${Math.min(active.index + 1, active.items.length)} / ${active.items.length}`;
     }
     if (stats) {
       const acc = Math.round(summary.accuracy * 100);
-      const parts = [`<span>気配:[${summary.currentRhythm}]</span>`, `<span>正確率:${acc}%</span>`];
+      const parts = [`<span>気配:<b>${summary.currentRhythm}</b></span>`, `<span>正確率:<b>${acc}%</b></span>`];
       if (active.mode === "jissen") {
         parts.push(`<span>KPM:${Math.round(summary.kpm)}</span>`);
         if (active.deadlineSeconds) parts.push(`<span>残り:${active.remaining}秒</span>`);
