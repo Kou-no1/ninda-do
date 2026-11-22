@@ -109,6 +109,6 @@ node scripts/check-browser-regressions.mjs
 | 1.13.0 | 里のにわ・通常修行による草木の育成 | ec95895（実装） |
 | 1.14.0 | 巻物便「灯つなぎ便」・提灯による延長・同じ道で自己ベストに再挑戦 | c33a7bb（実装） |
 | 1.15.0 | 月下の里と道場の画面刷新・左右の指と次のキーの視認性改善 | cd106d5（実装） |
-| 1.16.0 | ホーム画面からの起動・オフライン修行と印刷・授業を中断しない更新 | 本版 |
+| 1.16.0 | ホーム画面からの起動・オフライン修行と印刷・授業を中断しない更新 | c880515（実装） |
 
 配信資産を変更する際は機能追加ならminor、修正ならpatchを上げ、`js/main.js`の`APP_VERSION`と`sw.js`の`RELEASE`をそろえます。新しい実行資産は`sw.js`の一覧にも追加してください。`node scripts/check-system-regressions.mjs`で一覧と版の整合を、`node scripts/check-browser-regressions.mjs "PWA installs"`でオフライン起動と更新を検査できます。
